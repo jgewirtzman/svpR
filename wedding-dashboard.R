@@ -1,7 +1,5 @@
 # Wedding RSVP Dashboard
 # A simple dashboard to visualize RSVP status and accommodation data
-# Install required packages if not already installed
-# install.packages(c("shiny", "shinydashboard", "DT", "ggplot2", "plotly"))
 
 library(shiny)
 library(shinydashboard)
@@ -22,6 +20,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Overview", tabName = "overview", icon = icon("dashboard")),
+      menuItem("Quick Insights", tabName = "insights", icon = icon("lightbulb")),
       menuItem("Party List", tabName = "party", icon = icon("users")),
       menuItem("Accommodations", tabName = "accommodation", icon = icon("bed")),
       menuItem("Meals", tabName = "meals", icon = icon("utensils")),
@@ -33,6 +32,28 @@ ui <- dashboardPage(
   ),
   
   dashboardBody(
+    # Add mobile responsiveness
+    tags$head(
+      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1.0"),
+      tags$style(HTML("
+        @media (max-width: 768px) {
+          .content-wrapper { margin-left: 0 !important; # Run the application (uncomment when ready)
+# shinyApp(ui = ui, server = server)
+          .main-sidebar { display: none; }
+        }
+        
+        /* Make sure tables don't overflow */
+        .table-responsive {
+          overflow-x: auto;
+        }
+        
+        /* Improve value box styling */
+        .small-box {
+          margin-bottom: 15px;
+        }
+      "))
+    ),
+    
     tabItems(
       # Overview tab
       tabItem(tabName = "overview",
@@ -53,6 +74,31 @@ ui <- dashboardPage(
               fluidRow(
                 box(title = "RSVP Timeline", status = "success", width = 12,
                     plotlyOutput("rsvp_timeline")
+                )
+              )
+      ),
+      
+      # Quick Insights tab
+      tabItem(tabName = "insights",
+              fluidRow(
+                box(title = "RSVP Status", status = "primary", width = 4,
+                    tableOutput("rsvp_status_table")
+                ),
+                box(title = "Accommodation Summary", status = "info", width = 4,
+                    tableOutput("accommodation_summary_table")
+                ),
+                box(title = "Meal Requirements", status = "warning", width = 4,
+                    tableOutput("meal_summary_table")
+                )
+              ),
+              fluidRow(
+                box(title = "Cost Summary", status = "danger", width = 12,
+                    tableOutput("cost_summary_table")
+                )
+              ),
+              fluidRow(
+                box(title = "Data Quality Issues", status = "success", width = 12,
+                    DTOutput("data_issues_table")
                 )
               )
       ),
@@ -126,11 +172,53 @@ ui <- dashboardPage(
               )
       )
     )
-  )
+  ),
+  skin = "blue",
+  title = "Wedding Dashboard"
 )
 
 # Server
 server <- function(input, output, session) {
+  
+  # Create a synthetic timeline for RSVP responses (for demonstration)
+  create_timeline_data <- function(guests) {
+    # Get all guests who have responded
+    responded_guests <- guests %>%
+      filter(!is.na(wedding_rsvp)) %>%
+      mutate(response_type = wedding_rsvp)
+    
+    total_responses <- nrow(responded_guests)
+    
+    if (total_responses > 0) {
+      # Create a synthetic timeline (last 30 days)
+      end_date <- Sys.Date()
+      start_date <- end_date - 30
+      
+      # Distribute responses across the timeline
+      set.seed(123) # For reproducibility
+      date_range <- seq(start_date, end_date, by = "day")
+      
+      # Create a distribution that's heavier toward recent dates
+      weights <- seq(1, 10, length.out = length(date_range))
+      response_dates <- sample(date_range, total_responses, replace = TRUE, prob = weights)
+      
+      # Create a data frame with the timeline
+      timeline_data <- data.frame(
+        response_date = response_dates,
+        response_type = responded_guests$response_type
+      ) %>%
+        arrange(response_date) %>%
+        group_by(response_date, response_type) %>%
+        summarize(daily_count = n(), .groups = 'drop') %>%
+        group_by(response_type) %>%
+        mutate(cumulative = cumsum(daily_count)) %>%
+        ungroup()
+      
+      return(timeline_data)
+    } else {
+      return(NULL)
+    }
+  }
   
   # Reactive function to process data once CSV is uploaded
   results <- reactive({
@@ -224,12 +312,224 @@ server <- function(input, output, session) {
     p
   })
   
+  output$rsvp_timeline <- renderPlotly({
+    req(results())
+    
+    # Generate timeline data from the guests data
+    timeline_data <- create_timeline_data(results()$guests)
+    
+    if (!is.null(timeline_data) && nrow(timeline_data) > 0) {
+      # Create the plot
+      p <- plot_ly() %>%
+        add_trace(
+          data = subset(timeline_data, response_type == "Joyfully Accept"),
+          x = ~response_date, 
+          y = ~cumulative, 
+          type = 'scatter', 
+          mode = 'lines+markers',
+          name = 'Accepted', 
+          line = list(color = '#28a745'),
+          marker = list(color = '#28a745')
+        )
+      
+      if ("Regretfully Decline" %in% timeline_data$response_type) {
+        p <- p %>% add_trace(
+          data = subset(timeline_data, response_type == "Regretfully Decline"),
+          x = ~response_date, 
+          y = ~cumulative, 
+          type = 'scatter', 
+          mode = 'lines+markers',
+          name = 'Declined', 
+          line = list(color = '#dc3545'),
+          marker = list(color = '#dc3545')
+        )
+      }
+      
+      p <- p %>% layout(
+        title = "RSVP Response Timeline",
+        xaxis = list(title = "Date"),
+        yaxis = list(title = "Cumulative Responses"),
+        hovermode = "x unified"
+      )
+      
+      return(p)
+    } else {
+      # Create placeholder if no responses
+      plot_ly() %>%
+        layout(
+          title = "RSVP Timeline (No Responses Yet)",
+          annotations = list(
+            x = 0.5, y = 0.5, 
+            text = "Waiting for RSVP responses to visualize timeline",
+            showarrow = FALSE
+          )
+        )
+    }
+  })
+  
+  # Quick Insights tab outputs
+  output$rsvp_status_table <- renderTable({
+    req(results())
+    
+    data.frame(
+      Category = c("Total Invited", "Accepted", "Declined", "No Response"),
+      Count = c(
+        nrow(results()$guests),
+        sum(results()$guests$wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
+        sum(results()$guests$wedding_rsvp == "Regretfully Decline", na.rm = TRUE),
+        sum(is.na(results()$guests$wedding_rsvp) | results()$guests$wedding_rsvp == "", na.rm = TRUE)
+      )
+    )
+  })
+  
+  output$accommodation_summary_table <- renderTable({
+    req(results())
+    
+    acc_summary <- results()$accommodation_summary
+    
+    data.frame(
+      Category = c(
+        "Friday Night Guests", 
+        "Saturday Night Guests", 
+        "Sunday Night Guests",
+        "Standard Lodging",
+        "Camping"
+      ),
+      Count = c(
+        acc_summary$friday_count,
+        acc_summary$saturday_count,
+        acc_summary$sunday_count,
+        acc_summary$standard_lodging_count,
+        acc_summary$camping_count
+      )
+    )
+  })
+  
+  output$meal_summary_table <- renderTable({
+    req(results())
+    
+    meal_counts <- results()$meal_counts
+    
+    data.frame(
+      Meal = c(
+        "Friday Dinner",
+        "Saturday Meals",
+        "Wedding Meal (Sun)",
+        "Sunday Dinner"
+      ),
+      Count = c(
+        meal_counts$total_friday_dinner,
+        meal_counts$total_saturday_lunch,
+        meal_counts$total_sunday_lunch,
+        meal_counts$total_sunday_dinner
+      )
+    )
+  })
+  
+  output$cost_summary_table <- renderTable({
+    req(results())
+    
+    acc_summary <- results()$accommodation_summary
+    
+    data.frame(
+      Category = c(
+        "Friday Costs",
+        "Saturday Costs",
+        "Sunday Costs",
+        "Total Costs"
+      ),
+      Amount = c(
+        paste0("$", format(acc_summary$total_friday_cost, big.mark = ",")),
+        paste0("$", format(acc_summary$total_saturday_cost, big.mark = ",")),
+        paste0("$", format(acc_summary$total_sunday_cost, big.mark = ",")),
+        paste0("$", format(acc_summary$grand_total_cost, big.mark = ","))
+      )
+    )
+  })
+  
+  output$data_issues_table <- renderDT({
+    req(results())
+    
+    issues <- results()$data_issues
+    
+    if (length(issues) > 0) {
+      issue_df <- data.frame(
+        Issue_Type = character(),
+        Row_Numbers = character(),
+        Description = character(),
+        stringsAsFactors = FALSE
+      )
+      
+      if (!is.null(issues$missing_names)) {
+        issue_df <- rbind(issue_df, data.frame(
+          Issue_Type = "Missing Names",
+          Row_Numbers = paste(issues$missing_names, collapse = ", "),
+          Description = "Guests without first names",
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      if (!is.null(issues$invalid_emails)) {
+        issue_df <- rbind(issue_df, data.frame(
+          Issue_Type = "Invalid Emails",
+          Row_Numbers = paste(issues$invalid_emails, collapse = ", "),
+          Description = "Emails with invalid format",
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      if (!is.null(issues$inconsistent_friday)) {
+        issue_df <- rbind(issue_df, data.frame(
+          Issue_Type = "Inconsistent Responses",
+          Row_Numbers = paste(issues$inconsistent_friday, collapse = ", "),
+          Description = "Attending Friday but declined wedding",
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      datatable(issue_df,
+                options = list(pageLength = 5, dom = 't'),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No data quality issues found!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
   # Party List tab outputs
   output$party_table <- renderDT({
     req(results())
-    datatable(results()$party_summary,
-              options = list(pageLength = 10),
-              rownames = FALSE)
+    
+    # Select only the most important columns for display
+    party_display <- results()$party_summary %>%
+      select(
+        party_name, 
+        total_guests, 
+        wedding_attending, 
+        friday_attending, 
+        saturday_attending,
+        party_email
+      ) %>%
+      rename(
+        "Party Name" = party_name,
+        "Total Guests" = total_guests,
+        "Wedding" = wedding_attending,
+        "Friday" = friday_attending,
+        "Saturday" = saturday_attending,
+        "Email" = party_email
+      )
+    
+    datatable(
+      party_display,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE,
+        autoWidth = TRUE
+      ),
+      rownames = FALSE
+    )
   })
   
   # Accommodations tab outputs
@@ -267,9 +567,43 @@ server <- function(input, output, session) {
   
   output$accommodation_table <- renderDT({
     req(results())
-    datatable(results()$guest_costs,
-              options = list(pageLength = 10),
-              rownames = FALSE)
+    
+    # Select only relevant columns for display
+    accommodation_display <- results()$guest_costs %>%
+      select(
+        first_name,
+        last_name,
+        is_staying_friday,
+        is_staying_saturday,
+        is_staying_sunday,
+        is_camping,
+        friday_cost,
+        saturday_cost,
+        sunday_cost,
+        total_cost
+      ) %>%
+      rename(
+        "First Name" = first_name,
+        "Last Name" = last_name,
+        "Friday" = is_staying_friday,
+        "Saturday" = is_staying_saturday,
+        "Sunday" = is_staying_sunday,
+        "Camping" = is_camping,
+        "Friday Cost" = friday_cost,
+        "Saturday Cost" = saturday_cost,
+        "Sunday Cost" = sunday_cost,
+        "Total Cost" = total_cost
+      )
+    
+    datatable(
+      accommodation_display,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE,
+        autoWidth = TRUE
+      ),
+      rownames = FALSE
+    )
   })
   
   output$stay_distribution <- renderPlotly({
@@ -409,7 +743,11 @@ server <- function(input, output, session) {
       filter(!is.na(dietary_restrictions) & dietary_restrictions != "")
     
     datatable(dietary_data,
-              options = list(pageLength = 10),
+              options = list(
+                pageLength = 10,
+                scrollX = TRUE,
+                autoWidth = TRUE
+              ),
               rownames = FALSE)
   })
   
@@ -469,14 +807,45 @@ server <- function(input, output, session) {
   output$guest_costs_table <- renderDT({
     req(results())
     
-    datatable(results()$guest_costs %>%
-                mutate(
-                  friday_cost = paste0("$", friday_cost),
-                  saturday_cost = paste0("$", saturday_cost),
-                  sunday_cost = paste0("$", sunday_cost),
-                  total_cost = paste0("$", total_cost)
-                ),
-              options = list(pageLength = 10),
+    # Create a cleaner display for the costs table
+    costs_display <- results()$guest_costs %>%
+      select(
+        first_name,
+        last_name,
+        is_staying_friday,
+        is_staying_saturday, 
+        is_staying_sunday,
+        is_camping,
+        friday_cost,
+        saturday_cost,
+        sunday_cost,
+        total_cost
+      ) %>%
+      mutate(
+        friday_cost = paste0("$", friday_cost),
+        saturday_cost = paste0("$", saturday_cost),
+        sunday_cost = paste0("$", sunday_cost),
+        total_cost = paste0("$", total_cost)
+      ) %>%
+      rename(
+        "First Name" = first_name,
+        "Last Name" = last_name,
+        "Friday" = is_staying_friday,
+        "Saturday" = is_staying_saturday,
+        "Sunday" = is_staying_sunday,
+        "Camping" = is_camping,
+        "Friday Cost" = friday_cost,
+        "Saturday Cost" = saturday_cost,
+        "Sunday Cost" = sunday_cost,
+        "Total Cost" = total_cost
+      )
+    
+    datatable(costs_display,
+              options = list(
+                pageLength = 15,
+                scrollX = TRUE,
+                autoWidth = TRUE
+              ),
               rownames = FALSE)
   })
   
@@ -496,18 +865,40 @@ server <- function(input, output, session) {
       # Export reports to the temporary directory
       export_reports(results(), report_dir)
       
-      # Generate meal planning report
-      generate_meal_planning_report(results(), file.path(report_dir, "meal_planning_report.pdf"))
+      # Generate meal planning report (use CSV instead of PDF)
+      generate_meal_planning_report(results(), file.path(report_dir, "meal_planning_report.csv"))
       
-      # Create a zip file
+      # Generate IFC report (use CSV instead of PDF)
+      generate_ifc_report(results(), file.path(report_dir, "ifc_report.csv"))
+      
+      # Also generate the simplified IFC summary
+      generate_ifc_summary(results(), file.path(report_dir, "ifc_summary.csv"))
+      
+      # Create a zip file using zip package if available
       zip_file <- file.path(temp_dir, "wedding_reports.zip")
-      zip::zip(zipfile = zip_file, files = report_dir, recurse = TRUE)
       
-      # Copy the zip file to the download location
-      file.copy(zip_file, file)
+      tryCatch({
+        if (requireNamespace("zip", quietly = TRUE)) {
+          zip::zip(zipfile = zip_file, files = report_dir, recurse = TRUE)
+          file.copy(zip_file, file)
+        } else {
+          # Fallback - create a notice about the zip package
+          writeLines(
+            "Note: The zip package would provide better compression. Please install with install.packages('zip').",
+            file.path(report_dir, "README.txt")
+          )
+          # Use basic R utils zip function
+          utils::zip(file, dir(report_dir, full.names = TRUE))
+        }
+      }, error = function(e) {
+        # In case of any error, at least provide the files
+        writeLines(
+          paste("Error creating zip:", conditionMessage(e), 
+                "\nIndividual files can be downloaded from the app interface."),
+          file.path(report_dir, "ERROR.txt")
+        )
+        file.copy(list.files(report_dir, full.names = TRUE)[1], file)
+      })
     }
   )
 }
-
-# Run the application
-shinyApp(ui = ui, server = server)

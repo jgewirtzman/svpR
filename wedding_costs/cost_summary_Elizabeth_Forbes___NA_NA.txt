@@ -1,0 +1,45 @@
+Party: Elizabeth Forbes & NA NA
+Guests: Elizabeth Forbes, NA NA
+Email: forbeselizabeth.s@gmail.com
+Total Guests: 2
+Total Cost: $298
+
+Accommodation Summary:
+- Friday night: 1 guests
+- Saturday night: 1 guests
+- Sunday night: 1 guests
+- Camping: 0 guests
+- Standard lodging: 1 guests
+
+Cost Breakdown:
+- Friday: $108
+  - Lodging: $72
+  - Meals: $36
+- Saturday: $172
+  - Lodging: $136
+  - Meals: $36
+- Sunday: $18
+
+Individual Guest Details:
+1. Elizabeth Forbes
+   - Staying: Friday, Saturday, Sunday
+   - Accommodation Type: Standard Lodging
+   - Included Meals:
+   - Friday: Dinner, Saturday: Breakfast
+   - Saturday: Lunch, Dinner, Sunday: Breakfast
+   - Sunday: Dinner, Monday: Breakfast (special catering)
+   - Friday Cost: $108 (Lodging: $72, Meals: $36)
+   - Saturday Cost: $172 (Lodging: $136, Meals: $36)
+   - Sunday Cost: $18
+   - Total Cost: $298 (Lodging: $208, Meals: $90)
+
+2. NA NA
+   - Staying: Not staying overnight
+   - Accommodation Type: Not staying overnight
+   - Included Meals:
+   - No overnight meals included
+   - Friday Cost: $0 (Lodging: $0, Meals: $0)
+   - Saturday Cost: $0 (Lodging: $0, Meals: $0)
+   - Sunday Cost: $0
+   - Total Cost: $0 (Lodging: $0, Meals: $0)
+

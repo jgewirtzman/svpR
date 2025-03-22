@@ -30,6 +30,17 @@ read_guest_list <- function(file_path) {
   return(guests)
 }
 
+# Helper function to detect and handle various column name formats
+find_column_by_pattern <- function(df, patterns) {
+  for (pattern in patterns) {
+    matching_cols <- grep(pattern, names(df), ignore.case = TRUE, value = TRUE)
+    if (length(matching_cols) > 0) {
+      return(matching_cols[1])
+    }
+  }
+  return(NULL)
+}
+
 # Function to generate party-level summary
 generate_party_summary <- function(guests) {
   # Find the email column - handle cases where email might have different names
@@ -186,6 +197,94 @@ calculate_accommodation_costs <- function(guests) {
   ))
 }
 
+# Function to create a concise summary for quick insights
+create_concise_summary <- function(results) {
+  # Get key metrics
+  rsvp_counts <- results$guests %>%
+    summarize(
+      total_invited = n(),
+      wedding_attending = sum(wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
+      wedding_declining = sum(wedding_rsvp == "Regretfully Decline", na.rm = TRUE),
+      wedding_no_response = sum(is.na(wedding_rsvp) | wedding_rsvp == ""),
+      friday_attending = sum(fridayshabbat_rsvp == "Joyfully Accept", na.rm = TRUE)
+    )
+  
+  # Accommodation summary
+  acc_summary <- results$accommodation_summary
+  
+  # Calculate total by category
+  total_lodging <- acc_summary$friday_count * 72 + 
+    acc_summary$saturday_count * 136 + 
+    acc_summary$sunday_count * 0
+  
+  total_camping <- acc_summary$camping_count * 
+    (sum(results$guest_costs$is_camping & results$guest_costs$is_staying_friday) * 36 +
+       sum(results$guest_costs$is_camping & results$guest_costs$is_staying_saturday) * 54)
+  
+  total_meals <- acc_summary$friday_count * 36 + 
+    acc_summary$saturday_count * 36 + 
+    acc_summary$sunday_count * 18
+  
+  # Create summary data frame
+  summary_df <- data.frame(
+    Category = c(
+      "Total Invited Guests", "RSVP'd Yes", "RSVP'd No", "No Response",
+      "Attending Friday", "Staying Friday Night", "Staying Saturday Night", "Staying Sunday Night",
+      "Using Standard Lodging", "Camping", 
+      "Total Lodging Cost", "Total Camping Cost", "Total Meal Cost", "Grand Total Cost"
+    ),
+    Count = c(
+      rsvp_counts$total_invited, rsvp_counts$wedding_attending, 
+      rsvp_counts$wedding_declining, rsvp_counts$wedding_no_response,
+      rsvp_counts$friday_attending, 
+      acc_summary$friday_count, acc_summary$saturday_count, acc_summary$sunday_count,
+      acc_summary$standard_lodging_count, acc_summary$camping_count,
+      paste0("$", total_lodging), paste0("$", total_camping), 
+      paste0("$", total_meals), paste0("$", acc_summary$grand_total_cost)
+    )
+  )
+  
+  return(summary_df)
+}
+
+# Function to validate guest data for quality checks
+validate_guest_data <- function(guests) {
+  issues <- list()
+  
+  # Check for missing required fields
+  missing_name <- is.na(guests$first_name) | guests$first_name == ""
+  if (any(missing_name)) {
+    issues$missing_names <- which(missing_name)
+  }
+  
+  # Check for email format issues
+  email_cols <- grep("email", names(guests), ignore.case = TRUE, value = TRUE)
+  if (length(email_cols) > 0) {
+    email_col <- email_cols[1]
+    email_pattern <- "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+    invalid_emails <- !is.na(guests[[email_col]]) & 
+      guests[[email_col]] != "" & 
+      !grepl(email_pattern, guests[[email_col]])
+    if (any(invalid_emails)) {
+      issues$invalid_emails <- which(invalid_emails)
+    }
+  }
+  
+  # Check for response inconsistencies
+  if ("wedding_rsvp" %in% names(guests) && "fridayshabbat_rsvp" %in% names(guests)) {
+    # Attending Friday but not wedding
+    inconsistent_friday <- guests$fridayshabbat_rsvp == "Joyfully Accept" & 
+      guests$wedding_rsvp == "Regretfully Decline" & 
+      !is.na(guests$fridayshabbat_rsvp) & 
+      !is.na(guests$wedding_rsvp)
+    if (any(inconsistent_friday)) {
+      issues$inconsistent_friday <- which(inconsistent_friday)
+    }
+  }
+  
+  return(issues)
+}
+
 # Improved function to count meals for all guests
 count_meals <- function(guests) {
   # Get list of stay columns to check
@@ -256,6 +355,9 @@ generate_wedding_reports <- function(file_path) {
   # Count meals for all guests with improved function
   meal_counts <- count_meals(guests)
   
+  # Run data validation
+  data_issues <- validate_guest_data(guests)
+  
   # Print summary reports
   cat("\n=== WEDDING RSVP SUMMARY ===\n")
   print(party_summary)
@@ -266,13 +368,20 @@ generate_wedding_reports <- function(file_path) {
   cat("\n=== MEAL COUNTS (Detailed) ===\n")
   print(meal_counts)
   
+  # Print any data quality issues
+  if (length(data_issues) > 0) {
+    cat("\n=== DATA QUALITY ISSUES ===\n")
+    print(data_issues)
+  }
+  
   # Return all results as a list
   return(list(
     guests = guests,
     party_summary = party_summary,
     guest_costs = accommodation_results$guest_costs,
     accommodation_summary = accommodation_results$summary,
-    meal_counts = meal_counts
+    meal_counts = meal_counts,
+    data_issues = data_issues
   ))
 }
 
@@ -301,6 +410,10 @@ export_reports <- function(results, output_dir = ".") {
   meal_df <- meal_df[, c(ncol(meal_df), 1:(ncol(meal_df)-1))]
   names(meal_df)[1] <- "meal"
   write_csv(meal_df, file.path(output_dir, "meal_counts.csv"))
+  
+  # Generate and export concise summary report
+  concise_summary <- create_concise_summary(results)
+  write_csv(concise_summary, file.path(output_dir, "concise_summary.csv"))
   
   cat("Reports exported to:", output_dir, "\n")
 }

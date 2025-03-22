@@ -170,104 +170,157 @@ generate_cost_summary <- function(file_path) {
   ))
 }
 
-# Function to generate a PDF invoice/summary for each party
+# Function to generate CSV-based cost summaries for each party (replaces PDF generation)
 generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
-  # SIMPLIFIED: Force directory creation
+  # Create directory if it doesn't exist
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
   cat("Ensuring output directory exists:", output_dir, "\n")
   
-  # Create a template for the PDF
-  template <- "
----
-title: \"Wedding Accommodation Summary\"
-subtitle: \"For: %PARTY_NAME%\"
-date: \"Generated: `r format(Sys.Date(), '%B %d, %Y')`\"
-output: pdf_document
----
-
-## Cost Summary
-
-**Party Name:** %PARTY_NAME%  
-**Guests:** %GUEST_NAMES%  
-**Contact Email:** %EMAIL%
-
-### Accommodation Details
-
-```{r echo=FALSE, results='asis'}
-cat(party_details)
-```
-
-### Important Notes
-
-1. **Meals included with overnight stays:**
-   - Friday stays include: Friday dinner and Saturday breakfast
-   - Saturday stays include: Saturday lunch, Saturday dinner, and Sunday breakfast
-   - Sunday stays include: Special catering for Sunday dinner and Monday breakfast
-
-2. **Wedding reception meal (Sunday lunch) is included for all wedding guests.**
-
-### Payment Information
-
-Please make your payment by May 15, 2025 using one of the following methods:
-
-1. **Venmo**: @wedding-account
-2. **Zelle**: payments@wedding-email.com
-3. **Check**: Mail to Wedding Couple, 123 Wedding Lane, Wedding City, WS 12345
-
-### Questions?
-
-If you have any questions about your accommodations or costs, please contact us at:
-- Email: help@wedding-email.com
-- Phone: (555) 123-4567
-
-Thank you for joining us for our wedding celebration!
-"
-  
-  # Generate a PDF for each party
+  # Generate a CSV for each party
   for (party_detail in results$party_details) {
     # Get party details
     party_id <- party_detail$party
     party_name <- party_detail$party_name
-    party_email <- party_detail$email
-    party_details <- party_detail$summary
-    guest_names <- party_detail$guest_names
     
     # Create a unique filename
     filename <- file.path(output_dir, paste0(
       "cost_summary_", 
       gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".pdf"
+      ".csv"
     ))
     
-    # Create a temporary Rmd file
-    temp_rmd <- tempfile(fileext = ".Rmd")
-    temp_content <- template
-    temp_content <- gsub("%PARTY_NAME%", party_name, temp_content)
-    temp_content <- gsub("%GUEST_NAMES%", guest_names, temp_content)
-    temp_content <- gsub("%EMAIL%", party_email, temp_content)
+    # Create a simple data frame with the summary
+    party_info <- results$party_costs %>% filter(party == party_id)
     
-    write(temp_content, temp_rmd)
-    
-    # Render the PDF (this creates a PDF file)
-    tryCatch({
-      rmarkdown::render(
-        input = temp_rmd,
-        output_file = filename,
-        params = list(party_details = party_details),
-        quiet = TRUE
+    # Create a formatted summary table
+    summary_table <- data.frame(
+      Category = c(
+        "Party Name", "Email", "Total Guests",
+        "Friday Guests", "Saturday Guests", "Sunday Guests",
+        "Camping", "Standard Lodging",
+        "Friday Cost", "Saturday Cost", "Sunday Cost", "Total Cost"
+      ),
+      Value = c(
+        party_info$party_name, party_info$party_email, party_info$total_guests,
+        party_info$staying_friday, party_info$staying_saturday, party_info$staying_sunday,
+        party_info$camping, party_info$standard_lodging,
+        paste0("$", party_info$total_friday_cost), 
+        paste0("$", party_info$total_saturday_cost), 
+        paste0("$", party_info$total_sunday_cost), 
+        paste0("$", party_info$grand_total)
       )
-    }, error = function(e) {
-      cat("Error generating PDF for party", party_name, ":", conditionMessage(e), "\n")
-    })
+    )
     
-    # Remove the temporary file
-    unlink(temp_rmd)
+    # Write to CSV
+    write_csv(summary_table, filename)
+    cat("Generated cost summary for party:", party_name, "\n")
+    
+    # Also create a text version for easy access
+    text_filename <- file.path(output_dir, paste0(
+      "cost_summary_", 
+      gsub("[^a-zA-Z0-9]", "_", party_name), 
+      ".txt"
+    ))
+    
+    writeLines(party_detail$summary, text_filename)
   }
   
-  cat("Generated", length(results$party_details), "cost summary PDFs in", output_dir, "\n")
+  cat("Generated", length(results$party_details), "cost summaries in", output_dir, "\n")
 }
 
-# Function to generate a complete email for each party
+# Function to generate simplified emails with cleaner format
+generate_simplified_emails <- function(results, output_dir = "wedding_emails") {
+  # Create directory if it doesn't exist
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  cat("Ensuring email directory exists:", output_dir, "\n")
+  
+  # Simplified email template
+  email_template <- "
+To: %EMAIL%
+Subject: Your Wedding Accommodation Details - Cyrena & Jon's Wedding
+
+Dear %PARTY_NAME%,
+
+We're excited to have you join us for our wedding! Here's a summary of your accommodation details:
+
+Party: %PARTY_NAME%
+Number of Guests: %GUEST_COUNT%
+
+Your Stay:
+%STAY_DETAILS%
+
+Total Cost: $%TOTAL_COST%
+
+Payment Options:
+1. Venmo: @wedding-account
+2. Zelle: payments@wedding-email.com
+3. Check: Mail to Wedding Couple, 123 Wedding Lane, Wedding City, WS 12345
+
+Please make your payment by May 15, 2025.
+
+Looking forward to celebrating with you!
+
+Best wishes,
+Cyrena & Jon
+"
+  
+  # Generate an email for each party
+  for (party_detail in results$party_details) {
+    # Get party details
+    party_id <- party_detail$party
+    party_name <- party_detail$party_name
+    party_email <- party_detail$email
+    
+    # Get party costs info
+    party_costs <- results$party_costs %>% filter(party == party_id)
+    total_cost <- party_costs$grand_total
+    guest_count <- party_costs$total_guests
+    
+    # Create a simplified stay summary
+    stay_details <- ""
+    if(party_costs$staying_friday > 0) {
+      stay_details <- paste0(stay_details, 
+                             "- Friday Night: ", party_costs$staying_friday, " guests\n")
+    }
+    if(party_costs$staying_saturday > 0) {
+      stay_details <- paste0(stay_details, 
+                             "- Saturday Night: ", party_costs$staying_saturday, " guests\n")
+    }
+    if(party_costs$staying_sunday > 0) {
+      stay_details <- paste0(stay_details, 
+                             "- Sunday Night: ", party_costs$staying_sunday, " guests\n")
+    }
+    if(party_costs$camping > 0) {
+      stay_details <- paste0(stay_details, 
+                             "- Accommodation Type: Camping\n")
+    } else if(party_costs$standard_lodging > 0) {
+      stay_details <- paste0(stay_details, 
+                             "- Accommodation Type: Standard Lodging\n")
+    }
+    
+    # Create email content
+    email_content <- email_template
+    email_content <- gsub("%PARTY_NAME%", party_name, email_content)
+    email_content <- gsub("%EMAIL%", party_email, email_content)
+    email_content <- gsub("%GUEST_COUNT%", guest_count, email_content)
+    email_content <- gsub("%STAY_DETAILS%", stay_details, email_content)
+    email_content <- gsub("%TOTAL_COST%", total_cost, email_content)
+    
+    # Create a unique filename
+    filename <- file.path(output_dir, paste0(
+      "email_", 
+      gsub("[^a-zA-Z0-9]", "_", party_name), 
+      ".txt"
+    ))
+    
+    # Write email to file
+    write(email_content, filename)
+  }
+  
+  cat("Generated", length(results$party_details), "simplified email templates in", output_dir, "\n")
+}
+
+# Original function to generate a complete email for each party
 generate_cost_emails <- function(results, output_dir = "wedding_emails") {
   # SIMPLIFIED: Force directory creation
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
@@ -338,6 +391,9 @@ The Wedding Couple
   }
   
   cat("Generated", length(results$party_details), "cost summary emails in", output_dir, "\n")
+  
+  # Also generate simplified emails
+  generate_simplified_emails(results, output_dir)
 }
 
 # Main function to run the cost summary generation
@@ -356,7 +412,7 @@ run_cost_summary <- function(file_path) {
   # Generate cost summaries
   results <- generate_cost_summary(file_path)
   
-  # Generate PDFs - using simple paths
+  # Generate CSVs instead of PDFs - using simple paths
   generate_cost_pdfs(results, costs_dir)
   
   # Generate emails - using simple paths 

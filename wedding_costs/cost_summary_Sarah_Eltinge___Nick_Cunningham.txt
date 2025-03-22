@@ -1,0 +1,43 @@
+Party: Sarah Eltinge & Nick Cunningham
+Guests: Sarah Eltinge, Nick Cunningham
+Email: rnicholas@cunninghamfamily.net
+Total Guests: 2
+Total Cost: $344
+
+Accommodation Summary:
+- Friday night: 0 guests
+- Saturday night: 2 guests
+- Sunday night: 0 guests
+- Camping: 0 guests
+- Standard lodging: 2 guests
+
+Cost Breakdown:
+- Friday: $0
+  - Lodging: $0
+  - Meals: $0
+- Saturday: $344
+  - Lodging: $272
+  - Meals: $72
+- Sunday: $0
+
+Individual Guest Details:
+1. Sarah Eltinge
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Included Meals:
+   - Saturday: Lunch, Dinner, Sunday: Breakfast
+   - Friday Cost: $0 (Lodging: $0, Meals: $0)
+   - Saturday Cost: $172 (Lodging: $136, Meals: $36)
+   - Sunday Cost: $0
+   - Total Cost: $172 (Lodging: $136, Meals: $36)
+
+2. Nick Cunningham
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Included Meals:
+   - Saturday: Lunch, Dinner, Sunday: Breakfast
+   - Friday Cost: $0 (Lodging: $0, Meals: $0)
+   - Saturday Cost: $172 (Lodging: $136, Meals: $36)
+   - Sunday Cost: $0
+   - Total Cost: $172 (Lodging: $136, Meals: $36)
+

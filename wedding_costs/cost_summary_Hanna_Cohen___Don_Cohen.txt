@@ -1,0 +1,45 @@
+Party: Hanna Cohen & Don Cohen
+Guests: Hanna Cohen, Don Cohen
+Email: hannacohenpsyd@gmail.com
+Total Guests: 2
+Total Cost: $560
+
+Accommodation Summary:
+- Friday night: 2 guests
+- Saturday night: 2 guests
+- Sunday night: 0 guests
+- Camping: 0 guests
+- Standard lodging: 2 guests
+
+Cost Breakdown:
+- Friday: $216
+  - Lodging: $144
+  - Meals: $72
+- Saturday: $344
+  - Lodging: $272
+  - Meals: $72
+- Sunday: $0
+
+Individual Guest Details:
+1. Hanna Cohen
+   - Staying: Friday, Saturday
+   - Accommodation Type: Standard Lodging
+   - Included Meals:
+   - Friday: Dinner, Saturday: Breakfast
+   - Saturday: Lunch, Dinner, Sunday: Breakfast
+   - Friday Cost: $108 (Lodging: $72, Meals: $36)
+   - Saturday Cost: $172 (Lodging: $136, Meals: $36)
+   - Sunday Cost: $0
+   - Total Cost: $280 (Lodging: $208, Meals: $72)
+
+2. Don Cohen
+   - Staying: Friday, Saturday
+   - Accommodation Type: Standard Lodging
+   - Included Meals:
+   - Friday: Dinner, Saturday: Breakfast
+   - Saturday: Lunch, Dinner, Sunday: Breakfast
+   - Friday Cost: $108 (Lodging: $72, Meals: $36)
+   - Saturday Cost: $172 (Lodging: $136, Meals: $36)
+   - Sunday Cost: $0
+   - Total Cost: $280 (Lodging: $208, Meals: $72)
+

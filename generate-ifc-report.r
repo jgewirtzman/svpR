@@ -9,7 +9,7 @@ library(knitr)
 library(rmarkdown)
 
 # Function to generate a report for the Isabella Freedman Center
-generate_ifc_report <- function(results, output_file = "ifc_report.pdf") {
+generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   # SIMPLIFIED: Force directory creation
   output_dir <- dirname(output_file)
   if (output_dir != "." && output_dir != "") {
@@ -119,93 +119,174 @@ generate_ifc_report <- function(results, output_file = "ifc_report.pdf") {
       rename(Meal_Preference = meal_preferences, Dietary_Restrictions = dietary_restrictions)
   }
   
-  # Create a markdown report - using single quotes to avoid interpolation issues
-  rmd_content <- '
----
-title: "Isabella Freedman Center - Guest Stay Report"
-subtitle: "For Wedding: Cyrena & Jon - June 20-23, 2025"
-date: "`r format(Sys.Date(), \'%B %d, %Y\')`"
-output: pdf_document
----
-
-## Summary of Guest Stays
-
-```{r, echo=FALSE}
-knitr::kable(night_summary, 
-             caption = "Number of Guests per Night",
-             align = "lccc")
-```
-
-```{r, echo=FALSE}
-knitr::kable(accommodation_summary, 
-             caption = "Accommodation Types",
-             align = "lc")
-```
-
-## Meal Planning Summary
-
-```{r, echo=FALSE}
-knitr::kable(meal_summary, 
-             caption = "Meal Counts by Day",
-             align = "lccc")
-```
-
-## Detailed Guest List
-
-```{r, echo=FALSE}
-knitr::kable(ifc_report, 
-             caption = "Guest Stay Details",
-             align = "llccccll")
-```
-
-## Important Notes
-
-1. **Meal Inclusion by Stay:**
-   - Friday night guests: Friday dinner, Saturday breakfast
-   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast
-   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast
-   - All wedding guests: Sunday lunch (wedding meal)
-
-2. All guests listed are part of the wedding party for Cyrena & Jon.
-3. Please direct any questions to wedding@example.com or call (123) 456-7890.
-4. Special accommodation requests have been noted in the detailed guest list.
-  '
+  # Write out CSV files instead of generating a PDF
+  csv_base_name <- tools::file_path_sans_ext(output_file)
   
-  # Write the RMD file
-  rmd_file <- tempfile(fileext = ".Rmd")
-  writeLines(rmd_content, rmd_file)
+  # Write night summary
+  write_csv(night_summary, paste0(csv_base_name, "_night_summary.csv"))
   
-  # Render the PDF with error handling
-  tryCatch({
-    rmarkdown::render(
-      input = rmd_file,
-      output_file = output_file,
-      params = list(
-        night_summary = night_summary,
-        accommodation_summary = accommodation_summary,
-        meal_summary = meal_summary,
-        ifc_report = ifc_report
-      ),
-      quiet = TRUE
-    )
-    cat("IFC report generated:", output_file, "\n")
-  }, error = function(e) {
-    cat("Error generating IFC report:", conditionMessage(e), "\n")
-  })
+  # Write accommodation summary
+  write_csv(accommodation_summary, paste0(csv_base_name, "_accommodation_summary.csv"))
   
-  # Clean up
-  unlink(rmd_file)
+  # Write meal summary
+  write_csv(meal_summary, paste0(csv_base_name, "_meal_summary.csv"))
   
-  # Return the data used in the report
-  return(list(
+  # Write detailed guest list
+  write_csv(ifc_report, paste0(csv_base_name, "_guest_details.csv"))
+  
+  # Create a compilation of all data in one CSV for easy import
+  complete_report <- list(
     night_summary = night_summary,
     accommodation_summary = accommodation_summary,
     meal_summary = meal_summary,
     guest_details = ifc_report
+  )
+  
+  # Create a single text summary file for easy reference
+  summary_text <- paste0(
+    "Isabella Freedman Center - Guest Stay Report\n",
+    "For Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "== Summary of Guest Stays ==\n\n",
+    paste(capture.output(print(night_summary)), collapse = "\n"), "\n\n",
+    
+    "== Accommodation Types ==\n\n",
+    paste(capture.output(print(accommodation_summary)), collapse = "\n"), "\n\n",
+    
+    "== Meal Planning Summary ==\n\n",
+    paste(capture.output(print(meal_summary)), collapse = "\n"), "\n\n",
+    
+    "== Important Notes ==\n\n",
+    "1. Meal Inclusion by Stay:\n",
+    "   - Friday night guests: Friday dinner, Saturday breakfast\n",
+    "   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast\n",
+    "   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast\n",
+    "   - All wedding guests: Sunday lunch (wedding meal)\n\n",
+    
+    "2. All guests listed are part of the wedding party for Cyrena & Jon.\n",
+    "3. Please direct any questions to wedding@example.com or call (123) 456-7890.\n",
+    "4. Special accommodation requests have been noted in the detailed guest list.\n"
+  )
+  
+  # Write the text summary
+  writeLines(summary_text, paste0(csv_base_name, "_summary.txt"))
+  
+  cat("IFC report files generated in directory:", dirname(output_file), "\n")
+  
+  # Return the data used in the report
+  return(complete_report)
+}
+
+# Generate a simplified one-page summary for the venue
+generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
+  # Create directory if it doesn't exist
+  output_dir <- dirname(output_file)
+  if (output_dir != "." && output_dir != "") {
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  }
+  
+  # Extract just the key information for a simple summary
+  ifc_guests <- results$guest_costs %>%
+    filter(is_staying_friday | is_staying_saturday | is_staying_sunday)
+  
+  # Summary counts
+  summary_counts <- data.frame(
+    Category = c(
+      "Total Overnight Guests",
+      "Friday Night Total",
+      "Saturday Night Total", 
+      "Sunday Night Total",
+      "Camping Guests",
+      "Lodging Guests",
+      "Special Meal Requirements"
+    ),
+    Count = c(
+      nrow(ifc_guests),
+      sum(ifc_guests$is_staying_friday),
+      sum(ifc_guests$is_staying_saturday),
+      sum(ifc_guests$is_staying_sunday),
+      sum(ifc_guests$is_camping),
+      sum(!ifc_guests$is_camping & (ifc_guests$is_staying_friday | ifc_guests$is_staying_saturday | ifc_guests$is_staying_sunday)),
+      sum(!is.na(results$guests$dietary_restrictions) & results$guests$dietary_restrictions != "")
+    )
+  )
+  
+  # Meal counts
+  meal_counts <- results$meal_counts
+  
+  # Create a simplified meal summary
+  meal_summary <- data.frame(
+    Meal = c(
+      "Friday Dinner",
+      "Saturday Breakfast",
+      "Saturday Lunch",
+      "Saturday Dinner",
+      "Sunday Breakfast",
+      "Sunday Lunch (Wedding)",
+      "Sunday Dinner",
+      "Monday Breakfast"
+    ),
+    Total_Count = c(
+      meal_counts$total_friday_dinner,
+      meal_counts$total_saturday_breakfast,
+      meal_counts$total_saturday_lunch,
+      meal_counts$total_saturday_dinner,
+      meal_counts$total_sunday_breakfast,
+      meal_counts$total_sunday_lunch,
+      meal_counts$total_sunday_dinner,
+      meal_counts$total_monday_breakfast
+    )
+  )
+  
+  # Write these summary files
+  write_csv(summary_counts, output_file)
+  write_csv(meal_summary, paste0(tools::file_path_sans_ext(output_file), "_meals.csv"))
+  
+  # Create a single-page text summary
+  summary_text <- paste0(
+    "ISABELLA FREEDMAN CENTER - ONE PAGE SUMMARY\n",
+    "Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "GUEST COUNTS:\n",
+    "- Total Overnight Guests: ", nrow(ifc_guests), "\n",
+    "- Friday Night: ", sum(ifc_guests$is_staying_friday), "\n",
+    "- Saturday Night: ", sum(ifc_guests$is_staying_saturday), "\n",
+    "- Sunday Night: ", sum(ifc_guests$is_staying_sunday), "\n",
+    "- Camping: ", sum(ifc_guests$is_camping), "\n",
+    "- Standard Lodging: ", sum(!ifc_guests$is_camping & (ifc_guests$is_staying_friday | ifc_guests$is_staying_saturday | ifc_guests$is_staying_sunday)), "\n\n",
+    
+    "MEAL COUNTS:\n",
+    "- Friday Dinner: ", meal_counts$total_friday_dinner, "\n",
+    "- Saturday Breakfast: ", meal_counts$total_saturday_breakfast, "\n",
+    "- Saturday Lunch: ", meal_counts$total_saturday_lunch, "\n",
+    "- Saturday Dinner: ", meal_counts$total_saturday_dinner, "\n",
+    "- Sunday Breakfast: ", meal_counts$total_sunday_breakfast, "\n",
+    "- Sunday Lunch (Wedding): ", meal_counts$total_sunday_lunch, "\n",
+    "- Sunday Dinner: ", meal_counts$total_sunday_dinner, "\n",
+    "- Monday Breakfast: ", meal_counts$total_monday_breakfast, "\n\n",
+    
+    "NOTES:\n",
+    "- Detailed guest lists are provided in separate files\n",
+    "- Special meal requirements: ", sum(!is.na(results$guests$dietary_restrictions) & results$guests$dietary_restrictions != ""), " guests\n",
+    "- Primary contact: wedding@example.com / (123) 456-7890\n"
+  )
+  
+  # Write the text summary
+  writeLines(summary_text, paste0(tools::file_path_sans_ext(output_file), "_onepage.txt"))
+  
+  cat("IFC summary generated:", output_file, "\n")
+  
+  # Return the summary data
+  return(list(
+    summary_counts = summary_counts,
+    meal_summary = meal_summary
   ))
 }
 
 # Example usage (uncomment to use):
 # source("wedding-rsvp-tracker.R")
 # results <- generate_wedding_reports("guestlist.csv")
-# ifc_report <- generate_ifc_report(results, "ifc_guest_report.pdf")
+# ifc_report <- generate_ifc_report(results, "ifc_guest_report.csv")
+# ifc_summary <- generate_ifc_summary(results, "ifc_summary.csv")

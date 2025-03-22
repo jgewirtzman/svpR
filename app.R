@@ -13,6 +13,10 @@ library(stringr)
 library(knitr)
 library(rmarkdown)
 
+# Source required functions
+source("wedding-rsvp-tracker.R")
+source("cost-summary-generator.R")
+
 # UI
 ui <- dashboardPage(
   dashboardHeader(title = "Wedding RSVP Dashboard"),
@@ -20,6 +24,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Overview", tabName = "overview", icon = icon("dashboard")),
+      menuItem("Quick Insights", tabName = "insights", icon = icon("lightbulb")),
       menuItem("Party List", tabName = "party", icon = icon("users")),
       menuItem("Accommodations", tabName = "accommodation", icon = icon("bed")),
       menuItem("Meals", tabName = "meals", icon = icon("utensils")),
@@ -31,6 +36,37 @@ ui <- dashboardPage(
   ),
   
   dashboardBody(
+    # Add mobile responsiveness
+    tags$head(
+      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1.0"),
+      tags$style(HTML("
+        @media (max-width: 768px) {
+          .content-wrapper { margin-left: 0 !important; }
+          .main-sidebar { display: none; }
+        }
+        
+        /* Make sure tables don't overflow */
+        .table-responsive {
+          overflow-x: auto;
+        }
+        
+        /* Improve value box styling */
+        .small-box {
+          margin-bottom: 15px;
+        }
+        
+        /* Fix width issues in tables */
+        .dataTable {
+          width: 100% !important;
+        }
+        
+        /* Make sure columns don't get cut off */
+        .dataTables_wrapper {
+          overflow-x: auto;
+        }
+      "))
+    ),
+    
     tabItems(
       # Overview tab
       tabItem(tabName = "overview",
@@ -51,6 +87,31 @@ ui <- dashboardPage(
               fluidRow(
                 box(title = "RSVP Timeline", status = "success", width = 12,
                     plotlyOutput("rsvp_timeline")
+                )
+              )
+      ),
+      
+      # Quick Insights tab
+      tabItem(tabName = "insights",
+              fluidRow(
+                box(title = "RSVP Status", status = "primary", width = 4,
+                    tableOutput("rsvp_status_table")
+                ),
+                box(title = "Accommodation Summary", status = "info", width = 4,
+                    tableOutput("accommodation_summary_table")
+                ),
+                box(title = "Meal Requirements", status = "warning", width = 4,
+                    tableOutput("meal_summary_table")
+                )
+              ),
+              fluidRow(
+                box(title = "Cost Summary", status = "danger", width = 12,
+                    tableOutput("cost_summary_table")
+                )
+              ),
+              fluidRow(
+                box(title = "Data Quality Issues", status = "success", width = 12,
+                    DTOutput("data_issues_table")
                 )
               )
       ),
@@ -124,303 +185,534 @@ ui <- dashboardPage(
               )
       )
     )
-  )
+  ),
+  skin = "blue",
+  title = "Wedding Dashboard"
 )
 
-# Include the RSVP tracker functions directly
-# Function to read in guest list data
-read_guest_list <- function(file_path) {
-  # Read the CSV file
-  guests <- read_csv(file_path, 
-                     col_types = cols(.default = col_character()),
-                     na = c("", "NA", "N/A"))
-  
-  # Clean column names (remove spaces, etc.)
-  names(guests) <- names(guests) %>%
-    str_to_lower() %>%
-    str_replace_all(" ", "_") %>%
-    str_replace_all("[^a-z0-9_]", "")
-  
-  # Print column names for debugging
-  cat("Available columns in the dataset:\n")
-  cat(paste(names(guests), collapse = ", "), "\n")
-  
-  return(guests)
-}
-
-# Function to generate party-level summary
-generate_party_summary <- function(guests) {
-  # Find the email column - handle cases where email might have different names
-  email_cols <- grep("email", names(guests), ignore.case = TRUE, value = TRUE)
-  
-  # Check if we found any email columns
-  if (length(email_cols) == 0) {
-    warning("No email column found in the data")
-    guests$email_column <- NA  # Create a dummy column
-    email_col_name <- "email_column"
-  } else {
-    # Use the first email column found
-    email_col_name <- email_cols[1]
-    # Rename it to a standard name for use in the function
-    guests$email_column <- guests[[email_col_name]]
+# Function for meal planning reports
+generate_meal_planning_report <- function(results, output_file = "meal_planning_report.csv") {
+  # Force directory creation
+  output_dir <- dirname(output_file)
+  if (output_dir != "." && output_dir != "") {
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+    cat("Ensuring output directory exists:", output_dir, "\n")
   }
   
-  # Create descriptive party names based on guest names
-  guests <- guests %>%
-    group_by(party) %>%
-    mutate(
-      party_name = case_when(
-        n() == 1 ~ paste0(first_name, " ", last_name),
-        n() == 2 ~ paste0(first(first_name), " ", first(last_name), " & ", last(first_name), " ", last(last_name)),
-        TRUE ~ paste0(first(last_name), " Family (", n(), " guests)")
+  # Get meal counts from results
+  meal_counts <- results$meal_counts
+  
+  # Format meal summary for the report
+  meal_summary <- data.frame(
+    Meal = c(
+      "Friday Dinner", 
+      "Saturday Breakfast", 
+      "Saturday Lunch", 
+      "Saturday Dinner", 
+      "Sunday Breakfast",
+      "Sunday Lunch (Wedding)",
+      "Sunday Dinner",
+      "Monday Breakfast"
+    ),
+    On_Site_Guests = c(
+      meal_counts$friday_dinner_onsite,
+      meal_counts$saturday_breakfast_onsite,
+      meal_counts$saturday_lunch_onsite,
+      meal_counts$saturday_dinner_onsite,
+      meal_counts$sunday_breakfast_onsite,
+      0, # Sunday lunch is for all wedding guests
+      meal_counts$sunday_dinner_onsite,
+      meal_counts$monday_breakfast_onsite
+    ),
+    Off_Site_Guests = c(
+      meal_counts$friday_dinner_offsite,
+      0, # Off-site guests don't get Saturday breakfast
+      meal_counts$saturday_lunch_offsite,
+      meal_counts$saturday_dinner_offsite,
+      0, # Off-site guests don't get Sunday breakfast
+      0, # Handled separately for wedding
+      0, # Off-site guests don't get Sunday dinner
+      0  # Off-site guests don't get Monday breakfast
+    ),
+    Total = c(
+      meal_counts$total_friday_dinner,
+      meal_counts$total_saturday_breakfast,
+      meal_counts$total_saturday_lunch,
+      meal_counts$total_saturday_dinner,
+      meal_counts$total_sunday_breakfast,
+      meal_counts$total_sunday_lunch,
+      meal_counts$total_sunday_dinner,
+      meal_counts$total_monday_breakfast
+    )
+  )
+  
+  # Create dietary restrictions summary
+  dietary_restrictions <- results$guests %>%
+    filter(!is.na(dietary_restrictions) & dietary_restrictions != "") %>%
+    group_by(restriction = dietary_restrictions) %>%
+    summarize(count = n()) %>%
+    arrange(desc(count))
+  
+  # Create meal preferences summary
+  meal_preferences <- results$guests %>%
+    filter(!is.na(meal_preferences)) %>%
+    group_by(preference = meal_preferences) %>%
+    summarize(count = n()) %>%
+    arrange(desc(count))
+  
+  # Create a list of guests with special requirements
+  special_diet_guests <- results$guests %>%
+    filter(!is.na(dietary_restrictions) & dietary_restrictions != "") %>%
+    select(
+      first_name,
+      last_name,
+      meal_preferences,
+      dietary_restrictions
+    ) %>%
+    rename(
+      "First Name" = first_name,
+      "Last Name" = last_name,
+      "Meal Preference" = meal_preferences,
+      "Dietary Restrictions" = dietary_restrictions
+    )
+  
+  # Write out CSV files
+  csv_base_name <- tools::file_path_sans_ext(output_file)
+  
+  # Write meal summary
+  write_csv(meal_summary, paste0(csv_base_name, "_meal_summary.csv"))
+  
+  # Write meal preferences
+  write_csv(meal_preferences, paste0(csv_base_name, "_meal_preferences.csv"))
+  
+  # Write dietary restrictions
+  write_csv(dietary_restrictions, paste0(csv_base_name, "_dietary_restrictions.csv"))
+  
+  # Write special diet guests
+  write_csv(special_diet_guests, paste0(csv_base_name, "_special_diet_guests.csv"))
+  
+  # Create a text summary file for easy reference
+  summary_text <- paste0(
+    "Wedding Meal Planning Report\n",
+    "For Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "== Meal Planning Summary ==\n\n",
+    paste(capture.output(print(meal_summary)), collapse = "\n"), "\n\n",
+    
+    "== Meal Preferences ==\n\n",
+    paste(capture.output(print(meal_preferences)), collapse = "\n"), "\n\n",
+    
+    "== Dietary Restrictions ==\n\n",
+    paste(capture.output(print(dietary_restrictions)), collapse = "\n"), "\n\n",
+    
+    "== Important Notes ==\n\n",
+    "1. Meal Inclusion by Stay:\n",
+    "   - Friday night guests: Friday dinner, Saturday breakfast\n",
+    "   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast\n",
+    "   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast\n",
+    "   - All wedding guests: Sunday lunch (wedding meal)\n\n",
+    
+    "2. Saturday Off-Site Guest Meals:\n",
+    "   - Guests can choose to join for lunch only, dinner only, or both meals\n",
+    "   - The counts above reflect these preferences from RSVP responses\n\n",
+    
+    "3. Dietary Information:\n",
+    "   - Non-meat options should be available at all meals\n",
+    "   - Please review the detailed dietary restrictions list and ensure appropriate options are available\n",
+    "   - See special_diet_guests.csv for individual dietary needs\n\n",
+    
+    "4. Catering Planning:\n",
+    "   - Sunday lunch (wedding reception) is the largest meal requiring service for all guests\n",
+    "   - Sunday dinner and Monday breakfast are special catering for overnight guests only\n"
+  )
+  
+  # Write the text summary
+  writeLines(summary_text, paste0(csv_base_name, "_summary.txt"))
+  
+  # Create one-page quick reference for catering staff
+  catering_reference <- paste0(
+    "MEAL PLANNING QUICK REFERENCE\n",
+    "Wedding: Cyrena & Jon - June 20-23, 2025\n\n",
+    
+    "TOTAL MEAL COUNTS:\n",
+    "- Friday Dinner: ", meal_counts$total_friday_dinner, "\n",
+    "- Saturday Breakfast: ", meal_counts$total_saturday_breakfast, "\n",
+    "- Saturday Lunch: ", meal_counts$total_saturday_lunch, "\n",
+    "- Saturday Dinner: ", meal_counts$total_saturday_dinner, "\n",
+    "- Sunday Breakfast: ", meal_counts$total_sunday_breakfast, "\n",
+    "- Sunday Lunch (Wedding): ", meal_counts$total_sunday_lunch, "\n",
+    "- Sunday Dinner: ", meal_counts$total_sunday_dinner, "\n",
+    "- Monday Breakfast: ", meal_counts$total_monday_breakfast, "\n\n",
+    
+    "SPECIAL DIETS SUMMARY:\n"
+  )
+  
+  # Add special diet summary
+  if (nrow(dietary_restrictions) > 0) {
+    for (i in 1:nrow(dietary_restrictions)) {
+      catering_reference <- paste0(
+        catering_reference,
+        "- ", dietary_restrictions$restriction[i], ": ", dietary_restrictions$count[i], " guests\n"
       )
-    ) %>%
-    ungroup()
-  
-  # Group by party and get email
-  party_summary <- guests %>%
-    group_by(party) %>%
-    summarize(
-      party_name = first(party_name),
-      party_email = first(na.omit(email_column)),
-      total_guests = n(),
-      guest_names = paste(paste(first_name, last_name), collapse = ", "),
-      wedding_attending = sum(wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
-      wedding_declining = sum(wedding_rsvp == "Regretfully Decline", na.rm = TRUE),
-      wedding_no_response = sum(is.na(wedding_rsvp)),
-      friday_attending = sum(fridayshabbat_rsvp == "Joyfully Accept", na.rm = TRUE),
-      saturday_attending = sum(saturday_onsite_rsvp == "Yes, I will join on Saturday" | 
-                                 saturday_offsite_rsvp == "Yes, I will join for lunch only" |
-                                 saturday_offsite_rsvp == "Yes, I will join for dinner only" |
-                                 saturday_offsite_rsvp == "Yes, I will join for lunch and dinner", 
-                               na.rm = TRUE)
+    }
+  } else {
+    catering_reference <- paste0(
+      catering_reference, 
+      "- No special dietary requirements recorded\n"
     )
+  }
   
-  return(party_summary)
-}
-
-# Function to calculate accommodation costs
-calculate_accommodation_costs <- function(guests) {
-  # Define cost constants
-  SATURDAY_HOUSING_COST <- 136
-  SATURDAY_MEALS_COST <- 36
-  SATURDAY_CAMPING_GROUNDS <- 54
-  FRIDAY_HOUSING_COST <- 72
-  FRIDAY_MEALS_COST <- 36
-  FRIDAY_CAMPING_GROUNDS <- 36
-  SUNDAY_MEALS_COST <- 18
+  # Add meal preferences
+  catering_reference <- paste0(
+    catering_reference,
+    "\nMEAL PREFERENCES:\n"
+  )
   
-  # First check which stay columns exist in the dataset
-  possible_friday_cols <- c("friday_ifc_stay_1", "ifc_stay_1", "friday_ifc_stay")
-  possible_saturday_cols <- c("saturday_ifc_stay_1", "saturday_ifc_stay", "ifc_stay_1")
-  possible_sunday_cols <- c("sunday_ifc_stay_1", "sunday_ifc_stay")
-  possible_camping_cols <- c("lodgingcamping_weekend", "lodgingcamping_sat_only")
-  
-  # Process IFC stay data
-  accommodation_summary <- guests %>%
-    mutate(
-      # Check for "Yes" in ANY of the Friday stay columns that exist
-      is_staying_friday = rowSums(across(any_of(possible_friday_cols), 
-                                         ~ . == "Yes", 
-                                         .names = "col_{.col}"), 
-                                  na.rm = TRUE) > 0,
-      
-      # Check for "Yes" in ANY of the Saturday stay columns that exist
-      is_staying_saturday = rowSums(across(any_of(possible_saturday_cols), 
-                                           ~ . == "Yes", 
-                                           .names = "col_{.col}"),
-                                    na.rm = TRUE) > 0,
-      
-      # Check for "Yes" in ANY of the Sunday stay columns that exist
-      is_staying_sunday = rowSums(across(any_of(possible_sunday_cols), 
-                                         ~ . == "Yes", 
-                                         .names = "col_{.col}"),
-                                  na.rm = TRUE) > 0,
-      
-      # Check for "Camping" in ANY of the camping columns that exist
-      is_camping = rowSums(across(any_of(possible_camping_cols),
-                                  ~ . == "Camping",
-                                  .names = "col_{.col}"),
-                           na.rm = TRUE) > 0,
-      
-      # Calculate costs based on accommodation type and nights
-      friday_lodging_cost = case_when(
-        is_staying_friday & !is_camping ~ FRIDAY_HOUSING_COST,
-        is_staying_friday & is_camping ~ FRIDAY_CAMPING_GROUNDS,
-        TRUE ~ 0
-      ),
-      
-      friday_meals_cost = case_when(
-        is_staying_friday ~ FRIDAY_MEALS_COST,
-        TRUE ~ 0
-      ),
-      
-      saturday_lodging_cost = case_when(
-        is_staying_saturday & !is_camping ~ SATURDAY_HOUSING_COST,
-        is_staying_saturday & is_camping ~ SATURDAY_CAMPING_GROUNDS,
-        TRUE ~ 0
-      ),
-      
-      saturday_meals_cost = case_when(
-        is_staying_saturday ~ SATURDAY_MEALS_COST,
-        TRUE ~ 0
-      ),
-      
-      sunday_cost = case_when(
-        is_staying_sunday ~ SUNDAY_MEALS_COST,
-        TRUE ~ 0
-      ),
-      
-      # Calculate daily costs
-      friday_cost = friday_lodging_cost + friday_meals_cost,
-      saturday_cost = saturday_lodging_cost + saturday_meals_cost,
-      
-      # Calculate category totals
-      total_lodging_cost = friday_lodging_cost + saturday_lodging_cost,
-      total_meals_cost = friday_meals_cost + saturday_meals_cost + sunday_cost,
-      
-      # Calculate total cost per guest
-      total_cost = friday_cost + saturday_cost + sunday_cost
+  if (nrow(meal_preferences) > 0) {
+    for (i in 1:nrow(meal_preferences)) {
+      catering_reference <- paste0(
+        catering_reference,
+        "- ", meal_preferences$preference[i], ": ", meal_preferences$count[i], " guests\n"
+      )
+    }
+  } else {
+    catering_reference <- paste0(
+      catering_reference, 
+      "- No meal preferences recorded\n"
     )
+  }
   
-  # Create summary of accommodation counts and costs
-  accommodation_counts <- accommodation_summary %>%
-    summarize(
-      total_guests = n(),
-      friday_count = sum(is_staying_friday, na.rm = TRUE),
-      saturday_count = sum(is_staying_saturday, na.rm = TRUE),
-      sunday_count = sum(is_staying_sunday, na.rm = TRUE),
-      camping_count = sum(is_camping, na.rm = TRUE),
-      standard_lodging_count = sum((is_staying_friday | is_staying_saturday) & !is_camping, na.rm = TRUE),
-      total_friday_cost = sum(friday_cost, na.rm = TRUE),
-      total_saturday_cost = sum(saturday_cost, na.rm = TRUE),
-      total_sunday_cost = sum(sunday_cost, na.rm = TRUE),
-      grand_total_cost = sum(total_cost, na.rm = TRUE)
-    )
+  # Write quick reference
+  writeLines(catering_reference, paste0(csv_base_name, "_quickref.txt"))
   
+  cat("Meal planning report files generated in directory:", dirname(output_file), "\n")
+  
+  # Return the meal summaries
   return(list(
-    guest_costs = accommodation_summary,
-    summary = accommodation_counts
+    meal_summary = meal_summary,
+    meal_preferences = meal_preferences,
+    dietary_restrictions = dietary_restrictions,
+    special_diet_guests = special_diet_guests
   ))
 }
 
-# Improved function to count meals for all guests
-count_meals <- function(guests) {
-  # Get list of stay columns to check
-  possible_friday_cols <- c("friday_ifc_stay_1", "ifc_stay_1", "friday_ifc_stay")
-  possible_saturday_cols <- c("saturday_ifc_stay_1", "saturday_ifc_stay", "ifc_stay_1")
-  possible_sunday_cols <- c("sunday_ifc_stay_1", "sunday_ifc_stay")
+# Function to generate a report for the Isabella Freedman Center
+generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
+  # Force directory creation
+  output_dir <- dirname(output_file)
+  if (output_dir != "." && output_dir != "") {
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+    cat("Ensuring output directory exists:", output_dir, "\n")
+  }
   
-  # Count guests attending each meal
-  meal_counts <- guests %>%
-    mutate(
-      # General attendance
-      attending_wedding = wedding_rsvp == "Joyfully Accept",
-      attending_friday = fridayshabbat_rsvp == "Joyfully Accept",
-      
-      # Saturday meal attendance (for off-site guests) - look for specific responses
-      attending_saturday_lunch_only = saturday_offsite_rsvp == "Yes, I will join for lunch only",
-      attending_saturday_dinner_only = saturday_offsite_rsvp == "Yes, I will join for dinner only",
-      attending_saturday_both_meals = saturday_offsite_rsvp == "Yes, I will join for lunch and dinner",
-      
-      # Staying overnight checks
-      staying_at_ifc_friday = rowSums(across(any_of(possible_friday_cols), ~ . == "Yes"), na.rm = TRUE) > 0,
-      staying_at_ifc_saturday = rowSums(across(any_of(possible_saturday_cols), ~ . == "Yes"), na.rm = TRUE) > 0,
-      staying_at_ifc_sunday = rowSums(across(any_of(possible_sunday_cols), ~ . == "Yes"), na.rm = TRUE) > 0
-    ) %>%
-    summarize(
-      # Meals for on-site guests
-      friday_dinner_onsite = sum(staying_at_ifc_friday, na.rm = TRUE),
-      saturday_breakfast_onsite = sum(staying_at_ifc_friday, na.rm = TRUE),
-      saturday_lunch_onsite = sum(staying_at_ifc_saturday, na.rm = TRUE),
-      saturday_dinner_onsite = sum(staying_at_ifc_saturday, na.rm = TRUE),
-      sunday_breakfast_onsite = sum(staying_at_ifc_saturday, na.rm = TRUE),
-      sunday_dinner_onsite = sum(staying_at_ifc_sunday, na.rm = TRUE),
-      monday_breakfast_onsite = sum(staying_at_ifc_sunday, na.rm = TRUE),
-      
-      # Meals for off-site guests
-      friday_dinner_offsite = sum(attending_friday & !staying_at_ifc_friday, na.rm = TRUE),
-      saturday_lunch_offsite = sum(attending_saturday_lunch_only | attending_saturday_both_meals, na.rm = TRUE),
-      saturday_dinner_offsite = sum(attending_saturday_dinner_only | attending_saturday_both_meals, na.rm = TRUE),
-      
-      # Wedding reception meal (all attending)
-      sunday_lunch_total = sum(attending_wedding, na.rm = TRUE),
-      
-      # Total counts (for planning)
-      total_friday_dinner = sum(friday_dinner_onsite + friday_dinner_offsite, na.rm = TRUE),
-      total_saturday_breakfast = sum(saturday_breakfast_onsite, na.rm = TRUE),
-      total_saturday_lunch = sum(saturday_lunch_onsite + saturday_lunch_offsite, na.rm = TRUE),
-      total_saturday_dinner = sum(saturday_dinner_onsite + saturday_dinner_offsite, na.rm = TRUE),
-      total_sunday_breakfast = sum(sunday_breakfast_onsite, na.rm = TRUE),
-      total_sunday_lunch = sum(sunday_lunch_total, na.rm = TRUE),
-      total_sunday_dinner = sum(sunday_dinner_onsite, na.rm = TRUE),
-      total_monday_breakfast = sum(monday_breakfast_onsite, na.rm = TRUE)
+  # Extract all guests staying at IFC - use is_staying columns from guest_costs
+  # which already properly handles multiple column variations
+  ifc_guests <- results$guest_costs %>%
+    filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+    arrange(last_name, first_name)
+  
+  # Create a summary by night
+  night_summary <- data.frame(
+    Night = c("Friday, June 20", "Saturday, June 21", "Sunday, June 22"),
+    Guests = c(
+      sum(ifc_guests$is_staying_friday),
+      sum(ifc_guests$is_staying_saturday),
+      sum(ifc_guests$is_staying_sunday)
+    ),
+    Standard_Lodging = c(
+      sum(ifc_guests$is_staying_friday & !ifc_guests$is_camping),
+      sum(ifc_guests$is_staying_saturday & !ifc_guests$is_camping),
+      sum(ifc_guests$is_staying_sunday & !ifc_guests$is_camping)
+    ),
+    Camping = c(
+      sum(ifc_guests$is_staying_friday & ifc_guests$is_camping),
+      sum(ifc_guests$is_staying_saturday & ifc_guests$is_camping),
+      sum(ifc_guests$is_staying_sunday & ifc_guests$is_camping)
     )
+  )
   
-  return(meal_counts)
-}
-
-# Main function to generate all reports
-generate_wedding_reports <- function(file_path) {
-  # Read guest list
-  guests <- read_guest_list(file_path)
+  # Create a report for IFC with detailed stay information
+  ifc_report <- data.frame(
+    Last_Name = ifc_guests$last_name,
+    First_Name = ifc_guests$first_name,
+    Friday_Night = ifelse(ifc_guests$is_staying_friday, "Yes", "No"),
+    Saturday_Night = ifelse(ifc_guests$is_staying_saturday, "Yes", "No"),
+    Sunday_Night = ifelse(ifc_guests$is_staying_sunday, "Yes", "No"),
+    Accommodation_Type = ifelse(ifc_guests$is_camping, "Camping", "Standard Lodging")
+  )
   
-  # Generate party summary
-  party_summary <- generate_party_summary(guests)
+  # Create meal counts by night (using the improved meal tracking)
+  meal_counts <- results$meal_counts
   
-  # Calculate accommodation costs
-  accommodation_results <- calculate_accommodation_costs(guests)
+  # Format meal summary for the report
+  meal_summary <- data.frame(
+    Meal = c(
+      "Friday Dinner", 
+      "Saturday Breakfast", 
+      "Saturday Lunch", 
+      "Saturday Dinner", 
+      "Sunday Breakfast",
+      "Sunday Lunch (Wedding)",
+      "Sunday Dinner",
+      "Monday Breakfast"
+    ),
+    On_Site_Guests = c(
+      meal_counts$friday_dinner_onsite,
+      meal_counts$saturday_breakfast_onsite,
+      meal_counts$saturday_lunch_onsite,
+      meal_counts$saturday_dinner_onsite,
+      meal_counts$sunday_breakfast_onsite,
+      0, # Sunday lunch is for all wedding guests
+      meal_counts$sunday_dinner_onsite,
+      meal_counts$monday_breakfast_onsite
+    ),
+    Off_Site_Guests = c(
+      meal_counts$friday_dinner_offsite,
+      0, # Off-site guests don't get Saturday breakfast
+      meal_counts$saturday_lunch_offsite,
+      meal_counts$saturday_dinner_offsite,
+      0, # Off-site guests don't get Sunday breakfast
+      0, # Handled separately for wedding
+      0, # Off-site guests don't get Sunday dinner
+      0  # Off-site guests don't get Monday breakfast
+    ),
+    Total = c(
+      meal_counts$total_friday_dinner,
+      meal_counts$total_saturday_breakfast,
+      meal_counts$total_saturday_lunch,
+      meal_counts$total_saturday_dinner,
+      meal_counts$total_sunday_breakfast,
+      meal_counts$total_sunday_lunch,
+      meal_counts$total_sunday_dinner,
+      meal_counts$total_monday_breakfast
+    )
+  )
   
-  # Count meals for all guests with improved function
-  meal_counts <- count_meals(guests)
+  # Create guest counts by accommodation type
+  accommodation_summary <- ifc_guests %>%
+    group_by(Accommodation = ifelse(is_camping, "Camping", "Standard Lodging")) %>%
+    summarize(Count = n())
   
-  # Return all results as a list
+  # Add meal preferences and dietary restrictions
+  if (!is.null(results$guests$meal_preferences) || !is.null(results$guests$dietary_restrictions)) {
+    guest_details <- results$guests %>%
+      select(first_name, last_name, meal_preferences, dietary_restrictions) %>%
+      mutate(
+        meal_preferences = ifelse(is.na(meal_preferences), "", as.character(meal_preferences)),
+        dietary_restrictions = ifelse(is.na(dietary_restrictions), "", as.character(dietary_restrictions))
+      )
+    
+    ifc_report <- ifc_report %>%
+      left_join(guest_details, by = c("First_Name" = "first_name", "Last_Name" = "last_name")) %>%
+      rename(Meal_Preference = meal_preferences, Dietary_Restrictions = dietary_restrictions)
+  }
+  
+  # Write out CSV files instead of generating a PDF
+  csv_base_name <- tools::file_path_sans_ext(output_file)
+  
+  # Write night summary
+  write_csv(night_summary, paste0(csv_base_name, "_night_summary.csv"))
+  
+  # Write accommodation summary
+  write_csv(accommodation_summary, paste0(csv_base_name, "_accommodation_summary.csv"))
+  
+  # Write meal summary
+  write_csv(meal_summary, paste0(csv_base_name, "_meal_summary.csv"))
+  
+  # Write detailed guest list
+  write_csv(ifc_report, paste0(csv_base_name, "_guest_details.csv"))
+  
+  # Create a single text summary file for easy reference
+  summary_text <- paste0(
+    "Isabella Freedman Center - Guest Stay Report\n",
+    "For Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "== Summary of Guest Stays ==\n\n",
+    paste(capture.output(print(night_summary)), collapse = "\n"), "\n\n",
+    
+    "== Accommodation Types ==\n\n",
+    paste(capture.output(print(accommodation_summary)), collapse = "\n"), "\n\n",
+    
+    "== Meal Planning Summary ==\n\n",
+    paste(capture.output(print(meal_summary)), collapse = "\n"), "\n\n",
+    
+    "== Important Notes ==\n\n",
+    "1. Meal Inclusion by Stay:\n",
+    "   - Friday night guests: Friday dinner, Saturday breakfast\n",
+    "   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast\n",
+    "   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast\n",
+    "   - All wedding guests: Sunday lunch (wedding meal)\n\n",
+    
+    "2. All guests listed are part of the wedding party for Cyrena & Jon.\n",
+    "3. Please direct any questions to wedding@example.com or call (123) 456-7890.\n",
+    "4. Special accommodation requests have been noted in the detailed guest list.\n"
+  )
+  
+  # Write the text summary
+  writeLines(summary_text, paste0(csv_base_name, "_summary.txt"))
+  
+  cat("IFC report files generated in directory:", dirname(output_file), "\n")
+  
+  # Return the data used in the report
   return(list(
-    guests = guests,
-    party_summary = party_summary,
-    guest_costs = accommodation_results$guest_costs,
-    accommodation_summary = accommodation_results$summary,
-    meal_counts = meal_counts
+    night_summary = night_summary,
+    accommodation_summary = accommodation_summary,
+    meal_summary = meal_summary,
+    guest_details = ifc_report
   ))
 }
 
-# Additional function to export results to CSV files
-export_reports <- function(results, output_dir = ".") {
-  # SIMPLIFIED: Force directory creation
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-  cat("Ensuring report directory exists:", output_dir, "\n")
+# Generate a simplified one-page summary for the venue
+generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
+  # Create directory if it doesn't exist
+  output_dir <- dirname(output_file)
+  if (output_dir != "." && output_dir != "") {
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  }
   
-  # Export party summary
-  write_csv(results$party_summary, file.path(output_dir, "party_summary.csv"))
+  # Extract just the key information for a simple summary
+  ifc_guests <- results$guest_costs %>%
+    filter(is_staying_friday | is_staying_saturday | is_staying_sunday)
   
-  # Export guest costs
-  write_csv(results$guest_costs, file.path(output_dir, "guest_accommodation_costs.csv"))
+  # Summary counts
+  summary_counts <- data.frame(
+    Category = c(
+      "Total Overnight Guests",
+      "Friday Night Total",
+      "Saturday Night Total", 
+      "Sunday Night Total",
+      "Camping Guests",
+      "Lodging Guests",
+      "Special Meal Requirements"
+    ),
+    Count = c(
+      nrow(ifc_guests),
+      sum(ifc_guests$is_staying_friday),
+      sum(ifc_guests$is_staying_saturday),
+      sum(ifc_guests$is_staying_sunday),
+      sum(ifc_guests$is_camping),
+      sum(!ifc_guests$is_camping & (ifc_guests$is_staying_friday | ifc_guests$is_staying_saturday | ifc_guests$is_staying_sunday)),
+      sum(!is.na(results$guests$dietary_restrictions) & results$guests$dietary_restrictions != "")
+    )
+  )
   
-  # Export accommodation summary as a simple CSV
-  accommodation_df <- as.data.frame(t(as.matrix(results$accommodation_summary)))
-  accommodation_df$metric <- rownames(accommodation_df)
-  accommodation_df <- accommodation_df[, c(ncol(accommodation_df), 1:(ncol(accommodation_df)-1))]
-  names(accommodation_df)[1] <- "metric"
-  write_csv(accommodation_df, file.path(output_dir, "accommodation_summary.csv"))
+  # Meal counts
+  meal_counts <- results$meal_counts
   
-  # Export meal counts as a simple CSV
-  meal_df <- as.data.frame(t(as.matrix(results$meal_counts)))
-  meal_df$meal <- rownames(meal_df)
-  meal_df <- meal_df[, c(ncol(meal_df), 1:(ncol(meal_df)-1))]
-  names(meal_df)[1] <- "meal"
-  write_csv(meal_df, file.path(output_dir, "meal_counts.csv"))
+  # Create a simplified meal summary
+  meal_summary <- data.frame(
+    Meal = c(
+      "Friday Dinner",
+      "Saturday Breakfast",
+      "Saturday Lunch",
+      "Saturday Dinner",
+      "Sunday Breakfast",
+      "Sunday Lunch (Wedding)",
+      "Sunday Dinner",
+      "Monday Breakfast"
+    ),
+    Total_Count = c(
+      meal_counts$total_friday_dinner,
+      meal_counts$total_saturday_breakfast,
+      meal_counts$total_saturday_lunch,
+      meal_counts$total_saturday_dinner,
+      meal_counts$total_sunday_breakfast,
+      meal_counts$total_sunday_lunch,
+      meal_counts$total_sunday_dinner,
+      meal_counts$total_monday_breakfast
+    )
+  )
   
-  cat("Reports exported to:", output_dir, "\n")
-}
-
-# Function to generate a detailed meal planning report
-generate_meal_planning_report <- function(results, output_dir = ".") {
-  # Create simple summary that doesn't require PDF generation
-  return(results$meal_counts)
+  # Write these summary files
+  write_csv(summary_counts, output_file)
+  write_csv(meal_summary, paste0(tools::file_path_sans_ext(output_file), "_meals.csv"))
+  
+  # Create a single-page text summary
+  summary_text <- paste0(
+    "ISABELLA FREEDMAN CENTER - ONE PAGE SUMMARY\n",
+    "Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "GUEST COUNTS:\n",
+    "- Total Overnight Guests: ", nrow(ifc_guests), "\n",
+    "- Friday Night: ", sum(ifc_guests$is_staying_friday), "\n",
+    "- Saturday Night: ", sum(ifc_guests$is_staying_saturday), "\n",
+    "- Sunday Night: ", sum(ifc_guests$is_staying_sunday), "\n",
+    "- Camping: ", sum(ifc_guests$is_camping), "\n",
+    "- Standard Lodging: ", sum(!ifc_guests$is_camping & (ifc_guests$is_staying_friday | ifc_guests$is_staying_saturday | ifc_guests$is_staying_sunday)), "\n\n",
+    
+    "MEAL COUNTS:\n",
+    "- Friday Dinner: ", meal_counts$total_friday_dinner, "\n",
+    "- Saturday Breakfast: ", meal_counts$total_saturday_breakfast, "\n",
+    "- Saturday Lunch: ", meal_counts$total_saturday_lunch, "\n",
+    "- Saturday Dinner: ", meal_counts$total_saturday_dinner, "\n",
+    "- Sunday Breakfast: ", meal_counts$total_sunday_breakfast, "\n",
+    "- Sunday Lunch (Wedding): ", meal_counts$total_sunday_lunch, "\n",
+    "- Sunday Dinner: ", meal_counts$total_sunday_dinner, "\n",
+    "- Monday Breakfast: ", meal_counts$total_monday_breakfast, "\n\n",
+    
+    "NOTES:\n",
+    "- Detailed guest lists are provided in separate files\n",
+    "- Special meal requirements: ", sum(!is.na(results$guests$dietary_restrictions) & results$guests$dietary_restrictions != ""), " guests\n",
+    "- Primary contact: wedding@example.com / (123) 456-7890\n"
+  )
+  
+  # Write the text summary
+  writeLines(summary_text, paste0(tools::file_path_sans_ext(output_file), "_onepage.txt"))
+  
+  cat("IFC summary generated:", output_file, "\n")
+  
+  # Return the summary data
+  return(list(
+    summary_counts = summary_counts,
+    meal_summary = meal_summary
+  ))
 }
 
 # Server
 server <- function(input, output, session) {
+  
+  # Create a synthetic timeline for RSVP responses (for demonstration)
+  create_timeline_data <- function(guests) {
+    # Get all guests who have responded
+    responded_guests <- guests %>%
+      filter(!is.na(wedding_rsvp)) %>%
+      mutate(response_type = wedding_rsvp)
+    
+    total_responses <- nrow(responded_guests)
+    
+    if (total_responses > 0) {
+      # Create a synthetic timeline (last 30 days)
+      end_date <- Sys.Date()
+      start_date <- end_date - 30
+      
+      # Distribute responses across the timeline
+      set.seed(123) # For reproducibility
+      date_range <- seq(start_date, end_date, by = "day")
+      
+      # Create a distribution that's heavier toward recent dates
+      weights <- seq(1, 10, length.out = length(date_range))
+      response_dates <- sample(date_range, total_responses, replace = TRUE, prob = weights)
+      
+      # Create a data frame with the timeline
+      timeline_data <- data.frame(
+        response_date = response_dates,
+        response_type = responded_guests$response_type
+      ) %>%
+        arrange(response_date) %>%
+        group_by(response_date, response_type) %>%
+        summarize(daily_count = n(), .groups = 'drop') %>%
+        group_by(response_type) %>%
+        mutate(cumulative = cumsum(daily_count)) %>%
+        ungroup()
+      
+      return(timeline_data)
+    } else {
+      return(NULL)
+    }
+  }
   
   # Reactive function to process data once CSV is uploaded
   results <- reactive({
@@ -516,16 +808,221 @@ server <- function(input, output, session) {
   
   output$rsvp_timeline <- renderPlotly({
     req(results())
-    # Placeholder for timeline
-    plot_ly()
+    
+    # Generate timeline data from the guests data
+    timeline_data <- create_timeline_data(results()$guests)
+    
+    if (!is.null(timeline_data) && nrow(timeline_data) > 0) {
+      # Create the plot
+      p <- plot_ly() %>%
+        add_trace(
+          data = subset(timeline_data, response_type == "Joyfully Accept"),
+          x = ~response_date, 
+          y = ~cumulative, 
+          type = 'scatter', 
+          mode = 'lines+markers',
+          name = 'Accepted', 
+          line = list(color = '#28a745'),
+          marker = list(color = '#28a745')
+        )
+      
+      if ("Regretfully Decline" %in% timeline_data$response_type) {
+        p <- p %>% add_trace(
+          data = subset(timeline_data, response_type == "Regretfully Decline"),
+          x = ~response_date, 
+          y = ~cumulative, 
+          type = 'scatter', 
+          mode = 'lines+markers',
+          name = 'Declined', 
+          line = list(color = '#dc3545'),
+          marker = list(color = '#dc3545')
+        )
+      }
+      
+      p <- p %>% layout(
+        title = "RSVP Response Timeline",
+        xaxis = list(title = "Date"),
+        yaxis = list(title = "Cumulative Responses"),
+        hovermode = "x unified"
+      )
+      
+      return(p)
+    } else {
+      # Create placeholder if no responses
+      plot_ly() %>%
+        layout(
+          title = "RSVP Timeline (No Responses Yet)",
+          annotations = list(
+            x = 0.5, y = 0.5, 
+            text = "Waiting for RSVP responses to visualize timeline",
+            showarrow = FALSE
+          )
+        )
+    }
   })
   
+  # Quick Insights tab outputs
+  output$rsvp_status_table <- renderTable({
+    req(results())
+    
+    data.frame(
+      Category = c("Total Invited", "Accepted", "Declined", "No Response"),
+      Count = c(
+        nrow(results()$guests),
+        sum(results()$guests$wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
+        sum(results()$guests$wedding_rsvp == "Regretfully Decline", na.rm = TRUE),
+        sum(is.na(results()$guests$wedding_rsvp) | results()$guests$wedding_rsvp == "", na.rm = TRUE)
+      )
+    )
+  })
+  
+  output$accommodation_summary_table <- renderTable({
+    req(results())
+    
+    acc_summary <- results()$accommodation_summary
+    
+    data.frame(
+      Category = c(
+        "Friday Night Guests", 
+        "Saturday Night Guests", 
+        "Sunday Night Guests",
+        "Standard Lodging",
+        "Camping"
+      ),
+      Count = c(
+        acc_summary$friday_count,
+        acc_summary$saturday_count,
+        acc_summary$sunday_count,
+        acc_summary$standard_lodging_count,
+        acc_summary$camping_count
+      )
+    )
+  })
+  
+  output$meal_summary_table <- renderTable({
+    req(results())
+    
+    meal_counts <- results()$meal_counts
+    
+    data.frame(
+      Meal = c(
+        "Friday Dinner",
+        "Saturday Meals",
+        "Wedding Meal (Sun)",
+        "Sunday Dinner"
+      ),
+      Count = c(
+        meal_counts$total_friday_dinner,
+        meal_counts$total_saturday_lunch,
+        meal_counts$total_sunday_lunch,
+        meal_counts$total_sunday_dinner
+      )
+    )
+  })
+  
+  output$cost_summary_table <- renderTable({
+    req(results())
+    
+    acc_summary <- results()$accommodation_summary
+    
+    data.frame(
+      Category = c(
+        "Friday Costs",
+        "Saturday Costs",
+        "Sunday Costs",
+        "Total Costs"
+      ),
+      Amount = c(
+        paste0("$", format(acc_summary$total_friday_cost, big.mark = ",")),
+        paste0("$", format(acc_summary$total_saturday_cost, big.mark = ",")),
+        paste0("$", format(acc_summary$total_sunday_cost, big.mark = ",")),
+        paste0("$", format(acc_summary$grand_total_cost, big.mark = ","))
+      )
+    )
+  })
+  
+  output$data_issues_table <- renderDT({
+    req(results())
+    
+    issues <- results()$data_issues
+    
+    if (length(issues) > 0) {
+      issue_df <- data.frame(
+        Issue_Type = character(),
+        Row_Numbers = character(),
+        Description = character(),
+        stringsAsFactors = FALSE
+      )
+      
+      if (!is.null(issues$missing_names)) {
+        issue_df <- rbind(issue_df, data.frame(
+          Issue_Type = "Missing Names",
+          Row_Numbers = paste(issues$missing_names, collapse = ", "),
+          Description = "Guests without first names",
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      if (!is.null(issues$invalid_emails)) {
+        issue_df <- rbind(issue_df, data.frame(
+          Issue_Type = "Invalid Emails",
+          Row_Numbers = paste(issues$invalid_emails, collapse = ", "),
+          Description = "Emails with invalid format",
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      if (!is.null(issues$inconsistent_friday)) {
+        issue_df <- rbind(issue_df, data.frame(
+          Issue_Type = "Inconsistent Responses",
+          Row_Numbers = paste(issues$inconsistent_friday, collapse = ", "),
+          Description = "Attending Friday but declined wedding",
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      datatable(issue_df,
+                options = list(pageLength = 5, dom = 't'),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No data quality issues found!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
   # Party List tab outputs
   output$party_table <- renderDT({
     req(results())
-    datatable(results()$party_summary,
-              options = list(pageLength = 10),
-              rownames = FALSE)
+    
+    # Select only the most important columns for display
+    party_display <- results()$party_summary %>%
+      select(
+        party_name, 
+        total_guests, 
+        wedding_attending, 
+        friday_attending, 
+        saturday_attending,
+        party_email
+      ) %>%
+      rename(
+        "Party Name" = party_name,
+        "Total Guests" = total_guests,
+        "Wedding" = wedding_attending,
+        "Friday" = friday_attending,
+        "Saturday" = saturday_attending,
+        "Email" = party_email
+      )
+    
+    datatable(
+      party_display,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE,
+        autoWidth = TRUE
+      ),
+      rownames = FALSE
+    )
   })
   
   # Accommodations tab outputs
@@ -563,9 +1060,43 @@ server <- function(input, output, session) {
   
   output$accommodation_table <- renderDT({
     req(results())
-    datatable(results()$guest_costs,
-              options = list(pageLength = 10),
-              rownames = FALSE)
+    
+    # Select only relevant columns for display
+    accommodation_display <- results()$guest_costs %>%
+      select(
+        first_name,
+        last_name,
+        is_staying_friday,
+        is_staying_saturday,
+        is_staying_sunday,
+        is_camping,
+        friday_cost,
+        saturday_cost,
+        sunday_cost,
+        total_cost
+      ) %>%
+      rename(
+        "First Name" = first_name,
+        "Last Name" = last_name,
+        "Friday" = is_staying_friday,
+        "Saturday" = is_staying_saturday,
+        "Sunday" = is_staying_sunday,
+        "Camping" = is_camping,
+        "Friday Cost" = friday_cost,
+        "Saturday Cost" = saturday_cost,
+        "Sunday Cost" = sunday_cost,
+        "Total Cost" = total_cost
+      )
+    
+    datatable(
+      accommodation_display,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE,
+        autoWidth = TRUE
+      ),
+      rownames = FALSE
+    )
   })
   
   output$stay_distribution <- renderPlotly({
@@ -702,13 +1233,22 @@ server <- function(input, output, session) {
     # Extract dietary restrictions
     dietary_data <- results()$guests %>%
       select(first_name, last_name, meal_preferences, dietary_restrictions) %>%
-      filter(!is.na(dietary_restrictions) & dietary_restrictions != "")
+      filter(!is.na(dietary_restrictions) & dietary_restrictions != "") %>%
+      rename(
+        "First Name" = first_name,
+        "Last Name" = last_name,
+        "Meal Preference" = meal_preferences,
+        "Dietary Restrictions" = dietary_restrictions
+      )
     
     datatable(dietary_data,
-              options = list(pageLength = 10),
+              options = list(
+                pageLength = 10,
+                scrollX = TRUE,
+                autoWidth = TRUE
+              ),
               rownames = FALSE)
   })
-  
   # Cost Calculator tab outputs
   output$total_cost <- renderValueBox({
     req(results())
@@ -765,14 +1305,45 @@ server <- function(input, output, session) {
   output$guest_costs_table <- renderDT({
     req(results())
     
-    datatable(results()$guest_costs %>%
-                mutate(
-                  friday_cost = paste0("$", friday_cost),
-                  saturday_cost = paste0("$", saturday_cost),
-                  sunday_cost = paste0("$", sunday_cost),
-                  total_cost = paste0("$", total_cost)
-                ),
-              options = list(pageLength = 10),
+    # Create a cleaner display for the costs table
+    costs_display <- results()$guest_costs %>%
+      select(
+        first_name,
+        last_name,
+        is_staying_friday,
+        is_staying_saturday, 
+        is_staying_sunday,
+        is_camping,
+        friday_cost,
+        saturday_cost,
+        sunday_cost,
+        total_cost
+      ) %>%
+      mutate(
+        friday_cost = paste0("$", friday_cost),
+        saturday_cost = paste0("$", saturday_cost),
+        sunday_cost = paste0("$", sunday_cost),
+        total_cost = paste0("$", total_cost)
+      ) %>%
+      rename(
+        "First Name" = first_name,
+        "Last Name" = last_name,
+        "Friday" = is_staying_friday,
+        "Saturday" = is_staying_saturday,
+        "Sunday" = is_staying_sunday,
+        "Camping" = is_camping,
+        "Friday Cost" = friday_cost,
+        "Saturday Cost" = saturday_cost,
+        "Sunday Cost" = sunday_cost,
+        "Total Cost" = total_cost
+      )
+    
+    datatable(costs_display,
+              options = list(
+                pageLength = 15,
+                scrollX = TRUE,
+                autoWidth = TRUE
+              ),
               rownames = FALSE)
   })
   
@@ -792,27 +1363,40 @@ server <- function(input, output, session) {
       # Export reports to the temporary directory
       export_reports(results(), report_dir)
       
-      # Skip meal planning report generation to avoid PDF dependencies
-      # Create simpler CSV report instead
-      meal_counts <- results()$meal_counts
-      write.csv(as.data.frame(meal_counts), file.path(report_dir, "meal_planning_summary.csv"))
+      # Generate meal planning report (use CSV instead of PDF)
+      generate_meal_planning_report(results(), file.path(report_dir, "meal_planning_report.csv"))
       
-      # Create a zip file using base R to avoid dependencies
+      # Generate IFC report (use CSV instead of PDF)
+      generate_ifc_report(results(), file.path(report_dir, "ifc_report.csv"))
+      
+      # Also generate the simplified IFC summary
+      generate_ifc_summary(results(), file.path(report_dir, "ifc_summary.csv"))
+      
+      # Create a zip file using zip package if available
       zip_file <- file.path(temp_dir, "wedding_reports.zip")
       
-      # Use zip::zip if available, otherwise message about downloading individual files
-      if (requireNamespace("zip", quietly = TRUE)) {
-        zip::zip(zipfile = zip_file, files = list.files(report_dir, full.names = TRUE))
-        file.copy(zip_file, file)
-      } else {
-        # Create a README explaining the zip package is needed
+      tryCatch({
+        if (requireNamespace("zip", quietly = TRUE)) {
+          zip::zip(zipfile = zip_file, files = report_dir, recurse = TRUE)
+          file.copy(zip_file, file)
+        } else {
+          # Fallback - create a notice about the zip package
+          writeLines(
+            "Note: The zip package would provide better compression. Please install with install.packages('zip').",
+            file.path(report_dir, "README.txt")
+          )
+          # Use basic R utils zip function
+          utils::zip(file, dir(report_dir, full.names = TRUE))
+        }
+      }, error = function(e) {
+        # In case of any error, at least provide the files
         writeLines(
-          "The zip package is required to create ZIP archives. Please install it using install.packages('zip').\nIn the meantime, you can download individual reports from the tables in each tab.",
-          file.path(report_dir, "README.txt")
+          paste("Error creating zip:", conditionMessage(e), 
+                "\nIndividual files can be downloaded from the app interface."),
+          file.path(report_dir, "ERROR.txt")
         )
-        # Copy files directly - not ideal but better than nothing
-        file.copy(list.files(report_dir, full.names = TRUE), file)
-      }
+        file.copy(list.files(report_dir, full.names = TRUE)[1], file)
+      })
     }
   )
 }

@@ -207,7 +207,7 @@ generate_meal_planning_report(results, "wedding_reports/meal_planning_report.pdf
 # Step 6: Launch the dashboard (comment out if not needed)
 cat("\n*** Step 6: Launching the dashboard... ***\n")
 # This will launch the dashboard. Comment out if you don't want to run it immediately
- shiny::runApp("wedding-dashboard.R")
+ shiny::runApp("app.R")
 
 cat("\n*** Wedding RSVP analysis complete! ***\n")
 cat("\nReports can be found in:\n")
