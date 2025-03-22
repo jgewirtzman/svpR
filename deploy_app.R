@@ -1,6 +1,5 @@
-library(rsconnect)
 deployApp(
   appName = "svpR",
   appTitle = "Wedding Dashboard",
-  appFiles = "app.R"
+  appFiles = c("app.R", "wedding-rsvp-tracker.R", "cost-summary-generator.R")
 )

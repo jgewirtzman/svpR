@@ -1,0 +1,32 @@
+AGE CATEGORY SUMMARY
+Wedding: Cyrena & Jon - June 20-23, 2025
+Generated: March 22, 2025
+
+== Age Category Counts ==
+
+# A tibble: 1 × 6
+  age_category    total_guests friday_count saturday_count sunday_count total_cost
+  <chr>                  <int>        <int>          <int>        <int>      <dbl>
+1 Adults 21+ Room          222           12             30           10       6636
+
+== Age Categories by Night ==
+
+# A tibble: 1 × 5
+  age_category    friday_count saturday_count sunday_count total_guests
+  <chr>                  <int>          <int>        <int>        <int>
+1 Adults 21+ Room           12             30           10          222
+
+== Important Notes ==
+
+1. Age Categories:
+   - Adults 21+ Room: Adults staying in standard rooms
+   - Adults 21+ Camping: Adults staying in camping accommodations
+   - Guests 12-21 Room: Teenagers and young adults in standard rooms
+   - Children 5-12 Room: School-age children in standard rooms
+   - Children <5 Room: Young children and infants in standard rooms
+
+2. Age data has been extracted from the Wedding Budget Invite List.
+   Guests without matching records were categorized as 'Adults 21+ Room' by default.
+
+3. Guests in the camping category include only those 21+ years old.
+
