@@ -7,12 +7,13 @@ library(tidyr)
 library(readr)
 library(stringr)
 library(knitr)
+library(rmarkdown)
 
 # Function to generate a cost summary for each party
 generate_cost_summary <- function(results) {
   # Extract party list and guest costs
   party_summary <- results$party_summary
-  guests <- results$guests
+  guests <- results$guest_costs
   
   # Define cost constants for reference
   costs <- list(
@@ -40,9 +41,9 @@ generate_cost_summary <- function(results) {
       standard_lodging = sum((is_staying_friday | is_staying_saturday) & !is_camping, na.rm = TRUE),
       
       # Cost breakdowns by category
-      total_friday_cost = sum(friday_ifc_cost, na.rm = TRUE),
-      total_saturday_cost = sum(saturday_ifc_cost, na.rm = TRUE),
-      total_sunday_cost = sum(sunday_ifc_meals, na.rm = TRUE),
+      total_friday_cost = sum(friday_cost, na.rm = TRUE),
+      total_saturday_cost = sum(saturday_cost, na.rm = TRUE),
+      total_sunday_cost = sum(sunday_cost, na.rm = TRUE),
       
       # Guest charges
       total_friday_guest_charge = sum(friday_guest_charge, na.rm = TRUE),
@@ -273,6 +274,88 @@ generate_invoice_content <- function(party_detail) {
   return(invoice_text)
 }
 
+# Function to generate a formatted PDF invoice
+generate_invoice_pdf <- function(party_detail, output_file) {
+  # Create a markdown version of the invoice
+  invoice_md <- paste0(
+    "---\n",
+    "title: \"Wedding Accommodation Invoice\"\n",
+    "subtitle: \"Isabella Freedman Center | June 20-23, 2025\"\n",
+    "date: \"", format(Sys.Date(), "%B %d, %Y"), "\"\n",
+    "output: pdf_document\n",
+    "---\n\n",
+    
+    "## Invoice for: ", party_detail$party_name, "\n\n",
+    
+    "**Email:** ", party_detail$email, "\n",
+    "**Guests:** ", party_detail$guest_names, "\n\n",
+    
+    "## Accommodation Details\n\n"
+  )
+  
+  # Add only the applicable nights - showing nothing for nights not staying
+  if (party_detail$staying_friday) {
+    invoice_md <- paste0(invoice_md,
+                         "### Friday, June 20\n",
+                         "  Standard accommodation includes:\n",
+                         "  * Friday dinner\n",
+                         "  * Saturday breakfast\n",
+                         "  * Overnight accommodation\n\n")
+  }
+  
+  if (party_detail$staying_saturday) {
+    invoice_md <- paste0(invoice_md,
+                         "### Saturday, June 21\n",
+                         "  Standard accommodation includes:\n",
+                         "  * Saturday lunch\n",
+                         "  * Saturday dinner\n",
+                         "  * Sunday breakfast\n",
+                         "  * Overnight accommodation\n\n")
+  }
+  
+  if (party_detail$staying_sunday) {
+    invoice_md <- paste0(invoice_md,
+                         "### Sunday, June 22\n",
+                         "  Standard accommodation includes:\n",
+                         "  * Sunday dinner\n",
+                         "  * Monday breakfast\n",
+                         "  * Overnight accommodation\n\n")
+  }
+  
+  # Add payment information
+  invoice_md <- paste0(invoice_md,
+                       "## Payment Information\n\n",
+                       "**TOTAL DUE: $", format(party_detail$total_guest_charge, big.mark = ","), "**\n\n",
+                       "### Payment Options\n",
+                       "1. Venmo: @wedding-account\n",
+                       "2. Zelle: payments@wedding-email.com\n",
+                       "3. Check: Mail to Wedding Couple, 123 Wedding Lane, Wedding City, WS 12345\n\n",
+                       "Please make your payment by **May 15, 2025**.\n\n",
+                       "For questions, contact: wedding@example.com\n\n",
+                       "---\n",
+                       "*This invoice only includes accommodation costs. All wedding guests are welcome to attend the ceremony and reception at no additional charge.*"
+  )
+  
+  # Write the markdown file
+  md_file <- tempfile(fileext = ".md")
+  writeLines(invoice_md, md_file)
+  
+  # Render the PDF
+  try({
+    rmarkdown::render(
+      input = md_file,
+      output_file = output_file,
+      quiet = TRUE
+    )
+    cat("Generated invoice PDF:", output_file, "\n")
+  }, silent = TRUE)
+  
+  # Clean up
+  unlink(md_file)
+  
+  return(output_file)
+}
+
 # Function to generate cost PDFs and invoices
 generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
   # Create directory if it doesn't exist
@@ -293,27 +376,24 @@ generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
     # Get party details
     party_id <- party_detail$party
     party_name <- party_detail$party_name
+    safe_name <- gsub("[^a-zA-Z0-9]", "_", party_name)
     
     # Create a unique filename for the cost summary
-    filename <- file.path(output_dir, paste0(
-      "cost_summary_", 
-      gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".txt"
-    ))
+    filename <- file.path(output_dir, paste0("cost_summary_", safe_name, ".txt"))
     
     # Write the cost summary
     writeLines(party_detail$summary, filename)
     
     # Generate an invoice text file
-    invoice_filename <- file.path(output_dir, paste0(
-      "invoice_", 
-      gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".txt"
-    ))
+    invoice_filename <- file.path(output_dir, paste0("invoice_", safe_name, ".txt"))
     
     # Generate and write the invoice content
     invoice_content <- generate_invoice_content(party_detail)
     writeLines(invoice_content, invoice_filename)
+    
+    # Generate PDF invoice - only showing applicable nights
+    pdf_filename <- file.path(output_dir, paste0("invoice_", safe_name, ".pdf"))
+    generate_invoice_pdf(party_detail, pdf_filename)
     
     cat("Generated cost summary and invoice for party:", party_name, "\n")
   }
@@ -352,7 +432,7 @@ generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
   return(cost_summary)
 }
 
-# Function to generate simplified emails
+# Function to generate simplified emails with only applicable dates
 generate_simplified_emails <- function(results, output_dir = "wedding_emails") {
   # Create directory if it doesn't exist
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
@@ -438,11 +518,8 @@ Cyrena & Jon
     email_content <- gsub("%TOTAL_COST%", format(party_detail$total_guest_charge, big.mark = ","), email_content)
     
     # Create a unique filename
-    filename <- file.path(output_dir, paste0(
-      "email_", 
-      gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".txt"
-    ))
+    safe_name <- gsub("[^a-zA-Z0-9]", "_", party_name)
+    filename <- file.path(output_dir, paste0("email_", safe_name, ".txt"))
     
     # Write email to file
     writeLines(email_content, filename)

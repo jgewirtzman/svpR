@@ -56,27 +56,32 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   )
   
   # Add financial columns if available
-  if ("total_ifc_cost" %in% names(ifc_guests) && 
-      "total_guest_charge" %in% names(ifc_guests) && 
-      "total_host_charge" %in% names(ifc_guests)) {
+  if ("friday_cost" %in% names(ifc_guests) && 
+      "saturday_cost" %in% names(ifc_guests) && 
+      "sunday_cost" %in% names(ifc_guests)) {
     
     night_summary$Total_IFC_Charge <- c(
-      sum(ifc_guests$friday_ifc_cost[ifc_guests$is_staying_friday], na.rm = TRUE),
-      sum(ifc_guests$saturday_ifc_cost[ifc_guests$is_staying_saturday], na.rm = TRUE),
-      sum(ifc_guests$sunday_ifc_meals[ifc_guests$is_staying_sunday], na.rm = TRUE)
+      sum(ifc_guests$friday_cost[ifc_guests$is_staying_friday], na.rm = TRUE),
+      sum(ifc_guests$saturday_cost[ifc_guests$is_staying_saturday], na.rm = TRUE),
+      sum(ifc_guests$sunday_cost[ifc_guests$is_staying_sunday], na.rm = TRUE)
     )
     
-    night_summary$Guest_Charge <- c(
-      sum(ifc_guests$friday_guest_charge[ifc_guests$is_staying_friday], na.rm = TRUE),
-      sum(ifc_guests$saturday_guest_charge[ifc_guests$is_staying_saturday], na.rm = TRUE),
-      sum(ifc_guests$sunday_guest_charge[ifc_guests$is_staying_sunday], na.rm = TRUE)
-    )
-    
-    night_summary$Host_Charge <- c(
-      sum(ifc_guests$friday_host_charge[ifc_guests$is_staying_friday], na.rm = TRUE),
-      sum(ifc_guests$saturday_host_charge[ifc_guests$is_staying_saturday], na.rm = TRUE),
-      sum(ifc_guests$sunday_host_charge[ifc_guests$is_staying_sunday], na.rm = TRUE)
-    )
+    if ("friday_guest_charge" %in% names(ifc_guests) && 
+        "saturday_guest_charge" %in% names(ifc_guests) && 
+        "sunday_guest_charge" %in% names(ifc_guests)) {
+      
+      night_summary$Guest_Charge <- c(
+        sum(ifc_guests$friday_guest_charge[ifc_guests$is_staying_friday], na.rm = TRUE),
+        sum(ifc_guests$saturday_guest_charge[ifc_guests$is_staying_saturday], na.rm = TRUE),
+        sum(ifc_guests$sunday_guest_charge[ifc_guests$is_staying_sunday], na.rm = TRUE)
+      )
+      
+      night_summary$Host_Charge <- c(
+        sum(ifc_guests$friday_host_charge[ifc_guests$is_staying_friday], na.rm = TRUE),
+        sum(ifc_guests$saturday_host_charge[ifc_guests$is_staying_saturday], na.rm = TRUE),
+        sum(ifc_guests$sunday_host_charge[ifc_guests$is_staying_sunday], na.rm = TRUE)
+      )
+    }
   }
   
   # Add age category breakdown by night if available
@@ -109,7 +114,6 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   if ("age_category" %in% names(ifc_guests)) {
     ifc_report$Age_Category <- ifc_guests$age_category
   }
-  
   # Add stay information
   ifc_report$Friday_Night <- ifelse(ifc_guests$is_staying_friday, "Yes", "No")
   ifc_report$Saturday_Night <- ifelse(ifc_guests$is_staying_saturday, "Yes", "No")
@@ -118,22 +122,59 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   # Add accommodation type
   ifc_report$Accommodation_Type <- ifelse(ifc_guests$is_camping, "Camping", "Standard Lodging")
   
-  # Add financial information if available
-  if (all(c("friday_ifc_cost", "saturday_ifc_cost", "sunday_ifc_meals") %in% names(ifc_guests))) {
-    ifc_report$Friday_Cost <- ifc_guests$friday_ifc_cost
-    ifc_report$Saturday_Cost <- ifc_guests$saturday_ifc_cost
-    ifc_report$Sunday_Cost <- ifc_guests$sunday_ifc_meals
-    ifc_report$Total_IFC_Cost <- ifc_guests$total_ifc_cost
+  # Add meal attendance flags
+  ifc_report$Friday_Dinner <- ifelse(ifc_guests$is_staying_friday, "Yes", "No")
+  ifc_report$Saturday_Breakfast <- ifelse(ifc_guests$is_staying_friday, "Yes", "No")
+  ifc_report$Saturday_Lunch <- ifelse(ifc_guests$is_staying_saturday, "Yes", "No")
+  ifc_report$Saturday_Dinner <- ifelse(ifc_guests$is_staying_saturday, "Yes", "No")
+  ifc_report$Sunday_Breakfast <- ifelse(ifc_guests$is_staying_saturday, "Yes", "No")
+  ifc_report$Sunday_Lunch <- ifelse(ifc_guests$attending_wedding, "Yes", "No")
+  ifc_report$Sunday_Dinner <- ifelse(ifc_guests$is_staying_sunday, "Yes", "No")
+  ifc_report$Monday_Breakfast <- ifelse(ifc_guests$is_staying_sunday, "Yes", "No")
+  
+  # Add dietary preferences and restrictions
+  if ("meal_preferences" %in% names(ifc_guests)) {
+    ifc_report$Meal_Preference <- ifc_guests$meal_preferences
   }
   
-  if (all(c("friday_guest_charge", "saturday_guest_charge", "sunday_guest_charge") %in% names(ifc_guests))) {
+  if ("dietary_restrictions" %in% names(ifc_guests)) {
+    ifc_report$Dietary_Restrictions <- ifc_guests$dietary_restrictions
+  }
+  
+  # Add vegetarian and special diet flags
+  if ("is_vegetarian" %in% names(ifc_guests)) {
+    ifc_report$Vegetarian <- ifelse(ifc_guests$is_vegetarian, "Yes", "No")
+  }
+  
+  if ("has_special_diet" %in% names(ifc_guests)) {
+    ifc_report$Special_Diet <- ifelse(ifc_guests$has_special_diet, "Yes", "No")
+  }
+  
+  # Add financial information if available
+  if ("friday_cost" %in% names(ifc_guests) && 
+      "saturday_cost" %in% names(ifc_guests) && 
+      "sunday_cost" %in% names(ifc_guests)) {
+    
+    ifc_report$Friday_Cost <- ifc_guests$friday_cost
+    ifc_report$Saturday_Cost <- ifc_guests$saturday_cost
+    ifc_report$Sunday_Cost <- ifc_guests$sunday_cost
+    ifc_report$Total_IFC_Cost <- ifc_guests$total_cost
+  }
+  
+  if ("friday_guest_charge" %in% names(ifc_guests) && 
+      "saturday_guest_charge" %in% names(ifc_guests) && 
+      "sunday_guest_charge" %in% names(ifc_guests)) {
+    
     ifc_report$Friday_Guest_Charge <- ifc_guests$friday_guest_charge
     ifc_report$Saturday_Guest_Charge <- ifc_guests$saturday_guest_charge
     ifc_report$Sunday_Guest_Charge <- ifc_guests$sunday_guest_charge
     ifc_report$Total_Guest_Charge <- ifc_guests$total_guest_charge
   }
   
-  if (all(c("friday_host_charge", "saturday_host_charge", "sunday_host_charge") %in% names(ifc_guests))) {
+  if ("friday_host_charge" %in% names(ifc_guests) && 
+      "saturday_host_charge" %in% names(ifc_guests) && 
+      "sunday_host_charge" %in% names(ifc_guests)) {
+    
     ifc_report$Friday_Host_Charge <- ifc_guests$friday_host_charge
     ifc_report$Saturday_Host_Charge <- ifc_guests$saturday_host_charge
     ifc_report$Sunday_Host_Charge <- ifc_guests$sunday_host_charge
@@ -162,8 +203,7 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
       saturday_dinner_offsite = 0,
       
       # Assume all attending guests for wedding
-      total_sunday_lunch = sum(ifelse("is_attending_wedding" %in% names(ifc_guests), 
-                                      ifc_guests$is_attending_wedding, nrow(ifc_guests)), na.rm = TRUE),
+      total_sunday_lunch = sum(ifc_guests$attending_wedding, na.rm = TRUE),
       
       # Total counts
       total_friday_dinner = sum(ifc_guests$is_staying_friday, na.rm = TRUE),
@@ -171,8 +211,7 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
       total_saturday_lunch = sum(ifc_guests$is_staying_saturday, na.rm = TRUE),
       total_saturday_dinner = sum(ifc_guests$is_staying_saturday, na.rm = TRUE),
       total_sunday_breakfast = sum(ifc_guests$is_staying_saturday, na.rm = TRUE),
-      total_sunday_lunch = sum(ifelse("is_attending_wedding" %in% names(ifc_guests), 
-                                      ifc_guests$is_attending_wedding, nrow(ifc_guests)), na.rm = TRUE),
+      total_sunday_lunch = sum(ifc_guests$attending_wedding, na.rm = TRUE),
       total_sunday_dinner = sum(ifc_guests$is_staying_sunday, na.rm = TRUE),
       total_monday_breakfast = sum(ifc_guests$is_staying_sunday, na.rm = TRUE)
     )
@@ -223,24 +262,32 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   )
   
   # Add vegetarian and special diet counts if available
-  if ("is_vegetarian" %in% names(ifc_guests) || "vegetarian_count" %in% names(meal_counts)) {
-    veg_count <- if ("vegetarian_count" %in% names(meal_counts)) {
-      meal_counts$vegetarian_count
-    } else {
-      sum(ifc_guests$is_vegetarian, na.rm = TRUE)
-    }
-    
-    meal_summary$Vegetarian <- rep(veg_count, nrow(meal_summary))
+  if ("is_vegetarian" %in% names(ifc_guests)) {
+    vegetarian_counts <- c(
+      sum(ifc_guests$is_staying_friday & ifc_guests$is_vegetarian, na.rm = TRUE),
+      sum(ifc_guests$is_staying_friday & ifc_guests$is_vegetarian, na.rm = TRUE),
+      sum(ifc_guests$is_staying_saturday & ifc_guests$is_vegetarian, na.rm = TRUE),
+      sum(ifc_guests$is_staying_saturday & ifc_guests$is_vegetarian, na.rm = TRUE),
+      sum(ifc_guests$is_staying_saturday & ifc_guests$is_vegetarian, na.rm = TRUE),
+      sum(ifc_guests$attending_wedding & ifc_guests$is_vegetarian, na.rm = TRUE),
+      sum(ifc_guests$is_staying_sunday & ifc_guests$is_vegetarian, na.rm = TRUE),
+      sum(ifc_guests$is_staying_sunday & ifc_guests$is_vegetarian, na.rm = TRUE)
+    )
+    meal_summary$Vegetarian <- vegetarian_counts
   }
   
-  if ("has_special_diet" %in% names(ifc_guests) || "special_diet_count" %in% names(meal_counts)) {
-    special_diet_count <- if ("special_diet_count" %in% names(meal_counts)) {
-      meal_counts$special_diet_count
-    } else {
-      sum(ifc_guests$has_special_diet, na.rm = TRUE)
-    }
-    
-    meal_summary$Special_Diet <- rep(special_diet_count, nrow(meal_summary))
+  if ("has_special_diet" %in% names(ifc_guests)) {
+    special_diet_counts <- c(
+      sum(ifc_guests$is_staying_friday & ifc_guests$has_special_diet, na.rm = TRUE),
+      sum(ifc_guests$is_staying_friday & ifc_guests$has_special_diet, na.rm = TRUE),
+      sum(ifc_guests$is_staying_saturday & ifc_guests$has_special_diet, na.rm = TRUE),
+      sum(ifc_guests$is_staying_saturday & ifc_guests$has_special_diet, na.rm = TRUE),
+      sum(ifc_guests$is_staying_saturday & ifc_guests$has_special_diet, na.rm = TRUE),
+      sum(ifc_guests$attending_wedding & ifc_guests$has_special_diet, na.rm = TRUE),
+      sum(ifc_guests$is_staying_sunday & ifc_guests$has_special_diet, na.rm = TRUE),
+      sum(ifc_guests$is_staying_sunday & ifc_guests$has_special_diet, na.rm = TRUE)
+    )
+    meal_summary$Special_Diet <- special_diet_counts
   }
   
   # Create guest counts by accommodation type and age category
@@ -258,14 +305,14 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
       )
     
     # Add financial data if available
-    if (all(c("total_ifc_cost", "total_guest_charge", "total_host_charge") %in% names(ifc_guests))) {
+    if (all(c("total_cost", "total_guest_charge", "total_host_charge") %in% names(ifc_guests))) {
       accommodation_summary <- accommodation_summary %>%
         left_join(
           ifc_guests %>%
             group_by(Accommodation = ifelse(is_camping, "Camping", "Standard Lodging"), 
                      Age_Category = age_category) %>%
             summarize(
-              Total_IFC_Cost = sum(total_ifc_cost, na.rm = TRUE),
+              Total_IFC_Cost = sum(total_cost, na.rm = TRUE),
               Guest_Charge = sum(total_guest_charge, na.rm = TRUE),
               Host_Charge = sum(total_host_charge, na.rm = TRUE),
               .groups = 'drop'
@@ -278,59 +325,34 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   # Create comprehensive meal plan by age category if available
   meal_plan_by_age <- NULL
   if ("age_category" %in% names(ifc_guests) && !is.null(results$meal_counts_by_age)) {
-    meal_plan_by_age <- results$meal_counts_by_age$by_age_long
+    meal_plan_by_age <- results$meal_counts_by_age$all_meals
   }
   
-  # Add meal preferences and dietary restrictions if available
-  if (any(c("meal_preferences", "dietary_restrictions") %in% names(ifc_guests))) {
-    relevant_cols <- c("first_name", "last_name")
-    if ("meal_preferences" %in% names(ifc_guests)) relevant_cols <- c(relevant_cols, "meal_preferences")
-    if ("dietary_restrictions" %in% names(ifc_guests)) relevant_cols <- c(relevant_cols, "dietary_restrictions")
-    
-    guest_details <- ifc_guests %>%
-      select(all_of(relevant_cols)) %>%
-      mutate(
-        meal_preferences = ifelse(is.na(meal_preferences), "", as.character(meal_preferences)),
-        dietary_restrictions = ifelse(is.na(dietary_restrictions), "", as.character(dietary_restrictions))
-      )
-    
-    ifc_report <- ifc_report %>%
-      left_join(guest_details, by = c("First_Name" = "first_name", "Last_Name" = "last_name"))
-    
-    if ("meal_preferences" %in% names(guest_details)) {
-      names(ifc_report)[names(ifc_report) == "meal_preferences"] <- "Meal_Preference"
-    }
-    
-    if ("dietary_restrictions" %in% names(guest_details)) {
-      names(ifc_report)[names(ifc_report) == "dietary_restrictions"] <- "Dietary_Restrictions"
-    }
-  }
+  # Generate meal roster by age category
+  meal_roster_by_age <- data.frame()
   
-  # Create detailed schedule for each meal
-  meal_schedule <- NULL
-  if (!is.null(results$ifc_roster)) {
-    meal_schedule <- results$ifc_roster
-  } else if ("is_attending_wedding" %in% names(ifc_guests) && 
-             "is_attending_friday" %in% names(ifc_guests) && 
-             "is_attending_saturday_lunch" %in% names(ifc_guests) &&
-             "is_attending_saturday_dinner" %in% names(ifc_guests)) {
-    # Create from scratch
-    meal_schedule <- ifc_guests %>%
-      mutate(
-        friday_dinner = is_staying_friday | is_attending_friday,
-        saturday_breakfast = is_staying_friday,
-        saturday_lunch = is_staying_saturday | is_attending_saturday_lunch,
-        saturday_dinner = is_staying_saturday | is_attending_saturday_dinner,
-        sunday_breakfast = is_staying_saturday,
-        sunday_lunch = is_attending_wedding,
-        sunday_dinner = is_staying_sunday,
-        monday_breakfast = is_staying_sunday
-      ) %>%
-      select(
-        first_name, last_name, 
-        friday_dinner, saturday_breakfast, saturday_lunch, saturday_dinner,
-        sunday_breakfast, sunday_lunch, sunday_dinner, monday_breakfast
-      )
+  if ("age_category" %in% names(ifc_guests)) {
+    # List of all meals
+    meals <- c("Friday_Dinner", "Saturday_Breakfast", "Saturday_Lunch", "Saturday_Dinner",
+               "Sunday_Breakfast", "Sunday_Lunch", "Sunday_Dinner", "Monday_Breakfast")
+    
+    # For each meal, add attendees by age category
+    for (meal in meals) {
+      meal_col <- tolower(meal)
+      
+      # Get attendees for this meal
+      attendees <- ifc_report %>%
+        filter(!!sym(meal) == "Yes") %>%
+        group_by(Age_Category) %>%
+        summarize(
+          Count = n(),
+          .groups = 'drop'
+        ) %>%
+        mutate(Meal = meal)
+      
+      # Add to the overall roster
+      meal_roster_by_age <- bind_rows(meal_roster_by_age, attendees)
+    }
   }
   
   # Write out CSV files
@@ -357,13 +379,13 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
     write_csv(meal_plan_by_age, paste0(csv_base_name, "_meal_plan_by_age.csv"))
   }
   
+  # Write meal roster by age if available
+  if (nrow(meal_roster_by_age) > 0) {
+    write_csv(meal_roster_by_age, paste0(csv_base_name, "_meal_roster_by_age.csv"))
+  }
+  
   # Write detailed guest list
   write_csv(ifc_report, paste0(csv_base_name, "_guest_details.csv"))
-  
-  # Write meal schedule if available
-  if (!is.null(meal_schedule) && nrow(meal_schedule) > 0) {
-    write_csv(meal_schedule, paste0(csv_base_name, "_meal_schedule.csv"))
-  }
   
   # Create a single text summary file for easy reference
   summary_text <- paste0(
@@ -395,6 +417,15 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   summary_text <- paste0(summary_text,
                          "== Meal Planning Summary ==\n\n",
                          paste(capture.output(print(meal_summary)), collapse = "\n"), "\n\n")
+  
+  # Add meal roster by age section if available
+  if (nrow(meal_roster_by_age) > 0) {
+    summary_text <- paste0(summary_text,
+                           "== Meal Roster by Age Category ==\n\n",
+                           paste(capture.output(print(meal_roster_by_age %>%
+                                                        pivot_wider(names_from = Meal, values_from = Count, values_fill = 0))),
+                                 collapse = "\n"), "\n\n")
+  }
   
   # Add financial summary if available
   if ("Total_IFC_Cost" %in% names(ifc_report)) {
@@ -433,18 +464,157 @@ generate_ifc_report <- function(results, output_file = "ifc_report.csv") {
   # Write the text summary
   writeLines(summary_text, paste0(csv_base_name, "_summary.txt"))
   
-  cat("IFC report files generated in directory:", dirname(output_file), "\n")
+  # Try to generate a PDF report if rmarkdown is available
+  if (requireNamespace("rmarkdown", quietly = TRUE)) {
+    # Create a PDF report with all the information
+    rmd_content <- '
+---
+title: "Isabella Freedman Center - Guest Stay Report"
+subtitle: "For Wedding: Cyrena & Jon - June 20-23, 2025"
+date: "`r format(Sys.Date(), "%B %d, %Y")`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(knitr)
+library(dplyr)
+library(tidyr)
+```
+
+## Summary of Guest Stays
+
+```{r}
+kable(night_summary, caption = "Guest Counts by Night")
+```
+
+## Accommodation by Age Category
+
+```{r}
+if (!is.null(accommodation_summary) && nrow(accommodation_summary) > 0) {
+  kable(accommodation_summary %>% select(Accommodation, Age_Category, Count, Friday_Count, Saturday_Count, Sunday_Count),
+       caption = "Accommodation by Age Category")
+}
+```
+
+## Meal Planning Summary
+
+```{r}
+kable(meal_summary, caption = "Meal Counts")
+```
+
+## Financial Summary
+
+```{r}
+if (exists("financial_summary")) {
+  kable(financial_summary, caption = "Financial Summary")
+} else {
+  financial_summary <- data.frame(
+    Category = c("Total IFC Charge", "Guest Charge", "Host Charge"),
+    Amount = c(
+      paste0("$", format(sum(ifc_report$Total_IFC_Cost, na.rm = TRUE), big.mark = ",")),
+      paste0("$", format(sum(ifc_report$Total_Guest_Charge, na.rm = TRUE), big.mark = ",")),
+      paste0("$", format(sum(ifc_report$Total_Host_Charge, na.rm = TRUE), big.mark = ","))
+    )
+  )
+  kable(financial_summary, caption = "Financial Summary")
+}
+```
+
+## Important Notes
+
+1. **Meal Inclusion by Stay:**
+   - Friday night guests: Friday dinner, Saturday breakfast
+   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast
+   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast
+   - All wedding guests: Sunday lunch (wedding meal)
+
+2. All guests listed are part of the wedding party for Cyrena & Jon.
+
+3. Please direct any questions to wedding@example.com or call (123) 456-7890.
+
+4. Special accommodation requests have been noted in the detailed guest list.
+
+5. Age categories are used for room assignments and meal planning.
+
+## Guest List by Age Category
+
+```{r}
+ifc_report_summary <- ifc_report %>%
+  group_by(Age_Category) %>%
+  summarize(
+    Total = n(),
+    Friday = sum(Friday_Night == "Yes"),
+    Saturday = sum(Saturday_Night == "Yes"),
+    Sunday = sum(Sunday_Night == "Yes"),
+    Camping = sum(Accommodation_Type == "Camping"),
+    Standard = sum(Accommodation_Type == "Standard Lodging")
+  )
+
+kable(ifc_report_summary, caption = "Guest List Summary by Age Category")
+```
+
+## Meal Roster by Age Category
+
+```{r}
+if (exists("meal_roster_by_age") && nrow(meal_roster_by_age) > 0) {
+  kable(meal_roster_by_age %>%
+          pivot_wider(names_from = Meal, values_from = Count, values_fill = 0),
+        caption = "Meal Roster by Age Category")
+}
+```
+'
+
+# Write the RMD file
+rmd_file <- tempfile(fileext = ".Rmd")
+writeLines(rmd_content, rmd_file)
+
+# Render the PDF with error handling
+tryCatch({
+  pdf_output_file <- paste0(csv_base_name, ".pdf")
   
-  # Return the data used in the report
-  return(list(
-    night_summary = night_summary,
-    age_by_night = age_by_night,
-    accommodation_summary = accommodation_summary,
-    meal_summary = meal_summary,
-    meal_plan_by_age = meal_plan_by_age,
-    guest_details = ifc_report,
-    meal_schedule = meal_schedule
-  ))
+  # Create environment with required data
+  render_env <- new.env()
+  render_env$night_summary <- night_summary
+  render_env$meal_summary <- meal_summary
+  render_env$ifc_report <- ifc_report
+  
+  if (!is.null(accommodation_summary) && nrow(accommodation_summary) > 0) {
+    render_env$accommodation_summary <- accommodation_summary
+  }
+  
+  if (!is.null(meal_roster_by_age) && nrow(meal_roster_by_age) > 0) {
+    render_env$meal_roster_by_age <- meal_roster_by_age
+  }
+  
+  rmarkdown::render(
+    input = rmd_file,
+    output_file = pdf_output_file,
+    envir = render_env,
+    quiet = TRUE
+  )
+  cat("Generated IFC report PDF:", pdf_output_file, "\n")
+}, error = function(e) {
+  cat("Error generating IFC report PDF:", conditionMessage(e), "\n")
+  cat("CSV reports have been generated instead.\n")
+})
+
+# Clean up
+unlink(rmd_file)
+  }
+
+cat("IFC report files generated in directory:", dirname(output_file), "\n")
+
+# Return the data used in the report
+return(list(
+  night_summary = night_summary,
+  age_by_night = age_by_night,
+  accommodation_summary = accommodation_summary,
+  meal_summary = meal_summary,
+  meal_plan_by_age = meal_plan_by_age,
+  meal_roster_by_age = meal_roster_by_age,
+  guest_details = ifc_report
+))
 }
 
 # Generate a simplified one-page summary for the venue
@@ -490,10 +660,16 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
   )
   
   # Add special diet count if available
-  if ("dietary_restrictions" %in% names(results$guests)) {
+  if ("has_special_diet" %in% names(ifc_guests)) {
     special_diet_row <- data.frame(
       Category = "Special Meal Requirements",
-      Count = sum(!is.na(results$guests$dietary_restrictions) & results$guests$dietary_restrictions != "", na.rm = TRUE)
+      Count = sum(ifc_guests$has_special_diet, na.rm = TRUE)
+    )
+    summary_counts <- rbind(summary_counts, special_diet_row)
+  } else if ("dietary_restrictions" %in% names(ifc_guests)) {
+    special_diet_row <- data.frame(
+      Category = "Special Meal Requirements",
+      Count = sum(!is.na(ifc_guests$dietary_restrictions) & ifc_guests$dietary_restrictions != "", na.rm = TRUE)
     )
     summary_counts <- rbind(summary_counts, special_diet_row)
   }
@@ -501,9 +677,8 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
   # Add age categories if available
   if ("age_category" %in% names(ifc_guests)) {
     age_counts <- ifc_guests %>%
-      group_by(category = age_category) %>%
-      summarize(count = n()) %>%
-      mutate(Category = category, Count = count) %>%
+      group_by(Category = age_category) %>%
+      summarize(Count = n()) %>%
       select(Category, Count)
     
     summary_counts <- rbind(summary_counts, age_counts)
@@ -511,27 +686,38 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
   
   # Financial summary
   financial_summary <- NULL
-  if (all(c("total_ifc_cost", "total_guest_charge", "total_host_charge", 
-            "friday_ifc_cost", "saturday_ifc_cost", "sunday_ifc_meals") %in% names(ifc_guests))) {
+  if (all(c("total_cost", "total_guest_charge", "total_host_charge") %in% names(ifc_guests))) {
     
     financial_summary <- data.frame(
       Category = c(
         "Total IFC Charge",
         "Guest Charge",
-        "Host Charge",
-        "Friday IFC Total",
-        "Saturday IFC Total",
-        "Sunday IFC Total"
+        "Host Charge"
       ),
       Amount = c(
-        paste0("$", format(sum(ifc_guests$total_ifc_cost, na.rm = TRUE), big.mark = ",")),
+        paste0("$", format(sum(ifc_guests$total_cost, na.rm = TRUE), big.mark = ",")),
         paste0("$", format(sum(ifc_guests$total_guest_charge, na.rm = TRUE), big.mark = ",")),
-        paste0("$", format(sum(ifc_guests$total_host_charge, na.rm = TRUE), big.mark = ",")),
-        paste0("$", format(sum(ifc_guests$friday_ifc_cost, na.rm = TRUE), big.mark = ",")),
-        paste0("$", format(sum(ifc_guests$saturday_ifc_cost, na.rm = TRUE), big.mark = ",")),
-        paste0("$", format(sum(ifc_guests$sunday_ifc_meals, na.rm = TRUE), big.mark = ","))
+        paste0("$", format(sum(ifc_guests$total_host_charge, na.rm = TRUE), big.mark = ","))
       )
     )
+    
+    # Add breakdown by day if available
+    if (all(c("friday_cost", "saturday_cost", "sunday_cost") %in% names(ifc_guests))) {
+      daily_costs <- data.frame(
+        Category = c(
+          "Friday IFC Total",
+          "Saturday IFC Total",
+          "Sunday IFC Total"
+        ),
+        Amount = c(
+          paste0("$", format(sum(ifc_guests$friday_cost, na.rm = TRUE), big.mark = ",")),
+          paste0("$", format(sum(ifc_guests$saturday_cost, na.rm = TRUE), big.mark = ",")),
+          paste0("$", format(sum(ifc_guests$sunday_cost, na.rm = TRUE), big.mark = ","))
+        )
+      )
+      
+      financial_summary <- rbind(financial_summary, daily_costs)
+    }
   }
   
   # Meal counts - try using meal_counts from results
@@ -546,8 +732,8 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
       total_saturday_lunch = sum(ifc_guests$is_staying_saturday, na.rm = TRUE),
       total_saturday_dinner = sum(ifc_guests$is_staying_saturday, na.rm = TRUE),
       total_sunday_breakfast = sum(ifc_guests$is_staying_saturday, na.rm = TRUE),
-      total_sunday_lunch = sum(ifelse("is_attending_wedding" %in% names(ifc_guests), 
-                                      ifc_guests$is_attending_wedding, nrow(ifc_guests)), na.rm = TRUE),
+      total_sunday_lunch = sum(ifelse("attending_wedding" %in% names(ifc_guests), 
+                                      ifc_guests$attending_wedding, nrow(ifc_guests)), na.rm = TRUE),
       total_sunday_dinner = sum(ifc_guests$is_staying_sunday, na.rm = TRUE),
       total_monday_breakfast = sum(ifc_guests$is_staying_sunday, na.rm = TRUE)
     )
@@ -578,28 +764,14 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
   )
   
   # Add vegetarian and special diet counts if available
-  if ("vegetarian_count" %in% names(meal_counts) || "is_vegetarian" %in% names(ifc_guests)) {
-    veg_count <- if ("vegetarian_count" %in% names(meal_counts)) {
-      rep(meal_counts$vegetarian_count, nrow(meal_summary))
-    } else if ("is_vegetarian" %in% names(ifc_guests)) {
-      rep(sum(ifc_guests$is_vegetarian, na.rm = TRUE), nrow(meal_summary))
-    } else {
-      rep(0, nrow(meal_summary))
-    }
-    
-    meal_summary$Vegetarian <- veg_count
+  if ("is_vegetarian" %in% names(ifc_guests)) {
+    vegetarian_count <- sum(ifc_guests$is_vegetarian, na.rm = TRUE)
+    meal_summary$Vegetarian <- rep(vegetarian_count, nrow(meal_summary))
   }
   
-  if ("special_diet_count" %in% names(meal_counts) || "has_special_diet" %in% names(ifc_guests)) {
-    special_diet_count <- if ("special_diet_count" %in% names(meal_counts)) {
-      rep(meal_counts$special_diet_count, nrow(meal_summary))
-    } else if ("has_special_diet" %in% names(ifc_guests)) {
-      rep(sum(ifc_guests$has_special_diet, na.rm = TRUE), nrow(meal_summary))
-    } else {
-      rep(0, nrow(meal_summary))
-    }
-    
-    meal_summary$Special_Diet <- special_diet_count
+  if ("has_special_diet" %in% names(ifc_guests)) {
+    special_diet_count <- sum(ifc_guests$has_special_diet, na.rm = TRUE)
+    meal_summary$Special_Diet <- rep(special_diet_count, nrow(meal_summary))
   }
   
   # Write these summary files
@@ -640,10 +812,10 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
   }
   
   # Add financial summary if available
-  if (all(c("total_ifc_cost", "total_guest_charge", "total_host_charge") %in% names(ifc_guests))) {
+  if (all(c("total_cost", "total_guest_charge", "total_host_charge") %in% names(ifc_guests))) {
     summary_text <- paste0(summary_text,
                            "FINANCIAL SUMMARY:\n",
-                           "- Total IFC Charge: $", format(sum(ifc_guests$total_ifc_cost, na.rm = TRUE), big.mark = ","), "\n",
+                           "- Total IFC Charge: $", format(sum(ifc_guests$total_cost, na.rm = TRUE), big.mark = ","), "\n",
                            "- Guest Charge: $", format(sum(ifc_guests$total_guest_charge, na.rm = TRUE), big.mark = ","), "\n",
                            "- Host Charge: $", format(sum(ifc_guests$total_host_charge, na.rm = TRUE), big.mark = ","), "\n\n")
   }
@@ -658,6 +830,10 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
       summary_text <- paste0(summary_text, " (", meal_summary$Vegetarian[i], " veg)")
     }
     
+    if ("Special_Diet" %in% names(meal_summary)) {
+      summary_text <- paste0(summary_text, " (", meal_summary$Special_Diet[i], " special diet)")
+    }
+    
     summary_text <- paste0(summary_text, "\n")
   }
   
@@ -666,9 +842,13 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
                          "NOTES:\n",
                          "- Detailed guest lists are provided in separate files\n")
   
-  if ("dietary_restrictions" %in% names(results$guests)) {
-    special_diet_count <- sum(!is.na(results$guests$dietary_restrictions) & 
-                                results$guests$dietary_restrictions != "", na.rm = TRUE)
+  if ("has_special_diet" %in% names(ifc_guests)) {
+    special_diet_count <- sum(ifc_guests$has_special_diet, na.rm = TRUE)
+    summary_text <- paste0(summary_text, 
+                           "- Special meal requirements: ", special_diet_count, " guests\n")
+  } else if ("dietary_restrictions" %in% names(ifc_guests)) {
+    special_diet_count <- sum(!is.na(ifc_guests$dietary_restrictions) & 
+                                ifc_guests$dietary_restrictions != "", na.rm = TRUE)
     summary_text <- paste0(summary_text, 
                            "- Special meal requirements: ", special_diet_count, " guests\n")
   }
@@ -691,7 +871,7 @@ generate_ifc_summary <- function(results, output_file = "ifc_summary.csv") {
 }
 
 # Generate a roster of all guests by meal for the IFC staff
-generate_ifc_meal_roster <- function(results, output_file = "ifc_meal_roster.csv") {
+generate_meal_roster <- function(results, output_file = "meal_roster.csv") {
   # Create directory if it doesn't exist
   output_dir <- dirname(output_file)
   if (output_dir != "." && output_dir != "") {
@@ -710,97 +890,36 @@ generate_ifc_meal_roster <- function(results, output_file = "ifc_meal_roster.csv
     guests <- results$guests
   }
   
+  # Make sure attendance variables exist
+  if (!("attending_wedding" %in% names(guests))) {
+    guests <- guests %>%
+      mutate(
+        attending_wedding = wedding_rsvp == "Joyfully Accept",
+        attending_friday = fridayshabbat_rsvp == "Joyfully Accept",
+        attending_saturday_lunch_only = saturday_offsite_rsvp == "Yes, I will join for lunch only",
+        attending_saturday_dinner_only = saturday_offsite_rsvp == "Yes, I will join for dinner only",
+        attending_saturday_both_meals = saturday_offsite_rsvp == "Yes, I will join for lunch and dinner"
+      )
+  }
+  
   # Get all guests who may attend any meal
   meal_guests <- guests %>%
-    filter(is_staying_friday | is_staying_saturday | is_staying_sunday | 
-             ("is_attending_wedding" %in% names(guests) & is_attending_wedding) | 
-             ("is_attending_friday" %in% names(guests) & is_attending_friday) | 
-             ("is_attending_saturday_lunch" %in% names(guests) & is_attending_saturday_lunch) | 
-             ("is_attending_saturday_dinner" %in% names(guests) & is_attending_saturday_dinner))
-  
-  # Create meal attendance flags - handle case where attendance variables might not exist
-  has_attendance_flags <- all(c("is_attending_wedding", "is_attending_friday", 
-                                "is_attending_saturday_lunch", "is_attending_saturday_dinner") %in% names(meal_guests))
-  
-  meal_roster <- meal_guests %>%
     mutate(
-      # Meal attendance based on stays and RSVPs
-      friday_dinner = is_staying_friday | 
-        (has_attendance_flags & is_attending_friday & !is_staying_friday),
-      
+      # Add meal attendance flags
+      friday_dinner = is_staying_friday | (attending_friday & !is_staying_friday),
       saturday_breakfast = is_staying_friday,
-      
-      saturday_lunch = is_staying_saturday | 
-        (has_attendance_flags & is_attending_saturday_lunch & !is_staying_saturday),
-      
-      saturday_dinner = is_staying_saturday | 
-        (has_attendance_flags & is_attending_saturday_dinner & !is_staying_saturday),
-      
+      saturday_lunch = is_staying_saturday | attending_saturday_lunch_only | attending_saturday_both_meals,
+      saturday_dinner = is_staying_saturday | attending_saturday_dinner_only | attending_saturday_both_meals,
       sunday_breakfast = is_staying_saturday,
-      
-      sunday_lunch = if (has_attendance_flags) is_attending_wedding else TRUE,
-      
+      sunday_lunch = attending_wedding,
       sunday_dinner = is_staying_sunday,
-      
       monday_breakfast = is_staying_sunday
-    )
+    ) %>%
+    filter(friday_dinner | saturday_breakfast | saturday_lunch | saturday_dinner | 
+             sunday_breakfast | sunday_lunch | sunday_dinner | monday_breakfast)
   
-  # Add dietary information if available
-  meal_roster <- meal_roster %>%
-    mutate(
-      is_vegetarian = if ("is_vegetarian" %in% names(meal_roster)) 
-        is_vegetarian 
-      else if ("meal_preferences" %in% names(meal_roster)) 
-        meal_preferences == "No meat" | meal_preferences == "Opt-in for fish only" 
-      else FALSE,
-      
-      has_special_diet = if ("has_special_diet" %in% names(meal_roster)) 
-        has_special_diet 
-      else if ("dietary_restrictions" %in% names(meal_roster)) 
-        !is.na(dietary_restrictions) & dietary_restrictions != "" 
-      else FALSE
-    )
-  
-  # Select relevant columns
-  columns_to_select <- c(
-    "last_name", 
-    "first_name"
-  )
-  
-  # Add age_category if it exists
-  if ("age_category" %in% names(meal_roster)) {
-    columns_to_select <- c(columns_to_select, "age_category")
-  }
-  
-  # Add meal preferences and restrictions if they exist
-  if ("meal_preferences" %in% names(meal_roster)) {
-    columns_to_select <- c(columns_to_select, "meal_preferences")
-  }
-  
-  if ("dietary_restrictions" %in% names(meal_roster)) {
-    columns_to_select <- c(columns_to_select, "dietary_restrictions")
-  }
-  
-  # Add meal flags
+  # Create meal attendance flags dictionary
   meal_flags <- c(
-    "friday_dinner", 
-    "saturday_breakfast", 
-    "saturday_lunch", 
-    "saturday_dinner", 
-    "sunday_breakfast", 
-    "sunday_lunch", 
-    "sunday_dinner", 
-    "monday_breakfast"
-  )
-  
-  columns_to_select <- c(columns_to_select, meal_flags)
-  
-  # Create roster
-  final_roster <- meal_roster %>%
-    select(all_of(columns_to_select))
-  
-  # Create individual meal rosters
-  meal_list <- c(
     "friday_dinner", 
     "saturday_breakfast", 
     "saturday_lunch", 
@@ -822,134 +941,154 @@ generate_ifc_meal_roster <- function(results, output_file = "ifc_meal_roster.csv
     "Monday Breakfast"
   )
   
-  # Iterate through each meal and create roster
-  for (i in 1:length(meal_list)) {
-    meal_col <- meal_list[i]
+  # Create the base roster with all columns
+  columns_to_select <- c(
+    "last_name", 
+    "first_name",
+    "age_category"
+  )
+  
+  # Add dietary information if available
+  if ("meal_preferences" %in% names(meal_guests)) {
+    columns_to_select <- c(columns_to_select, "meal_preferences")
+  }
+  
+  if ("dietary_restrictions" %in% names(meal_guests)) {
+    columns_to_select <- c(columns_to_select, "dietary_restrictions")
+  }
+  
+  if ("is_vegetarian" %in% names(meal_guests)) {
+    columns_to_select <- c(columns_to_select, "is_vegetarian")
+  }
+  
+  if ("has_special_diet" %in% names(meal_guests)) {
+    columns_to_select <- c(columns_to_select, "has_special_diet")
+  }
+  
+  # Add meal flags
+  columns_to_select <- c(columns_to_select, meal_flags)
+  
+  # Filter columns to only those that exist
+  columns_to_select <- columns_to_select[columns_to_select %in% names(meal_guests)]
+  
+  # Create the complete roster
+  meal_roster <- meal_guests %>%
+    select(all_of(columns_to_select))
+  
+  # Write the full roster
+  write_csv(meal_roster, output_file)
+  
+  # Iterate through each meal and create specific roster
+  for (i in 1:length(meal_flags)) {
+    meal_flag <- meal_flags[i]
     meal_name <- meal_names[i]
     
-    # Get guests attending this meal
-    attendees <- final_roster %>%
-      filter(!!sym(meal_col))
+    # Create a cleanly formatted filename
+    meal_file <- paste0(
+      tools::file_path_sans_ext(output_file),
+      "_",
+      gsub(" ", "_", tolower(meal_name)),
+      ".csv"
+    )
     
-    if (nrow(attendees) > 0) {
-      # Base columns to select
-      select_cols <- c("last_name", "first_name")
+    # Get attendees for this meal
+    meal_attendees <- meal_roster %>%
+      filter(!!sym(meal_flag)) %>%
+      arrange(last_name, first_name)
+    
+    # Write meal-specific roster
+    write_csv(meal_attendees, meal_file)
+    
+    # Create summary by age category if available
+    if ("age_category" %in% names(meal_attendees)) {
+      age_summary <- meal_attendees %>%
+        group_by(age_category) %>%
+        summarize(
+          count = n(),
+          vegetarian_count = if ("is_vegetarian" %in% names(meal_attendees)) 
+            sum(is_vegetarian, na.rm = TRUE) else NA,
+          special_diet_count = if ("has_special_diet" %in% names(meal_attendees)) 
+            sum(has_special_diet, na.rm = TRUE) else NA
+        )
       
-      # Add age category if it exists
-      if ("age_category" %in% names(attendees)) {
-        select_cols <- c(select_cols, "age_category")
-      }
+      # Write age category summary
+      age_summary_file <- paste0(
+        tools::file_path_sans_ext(output_file),
+        "_",
+        gsub(" ", "_", tolower(meal_name)),
+        "_by_age.csv"
+      )
       
-      # Add meal preferences and restrictions if they exist
-      if ("meal_preferences" %in% names(attendees)) {
-        select_cols <- c(select_cols, "meal_preferences")
-      }
-      
-      if ("dietary_restrictions" %in% names(attendees)) {
-        select_cols <- c(select_cols, "dietary_restrictions")
-      }
-      
-      # Create roster for this meal
-      meal_attendees <- attendees %>%
-        select(all_of(select_cols)) %>%
-        arrange(last_name, first_name)
-      
-      # Write to CSV
-      write_csv(meal_attendees, 
-                paste0(tools::file_path_sans_ext(output_file), "_", meal_col, ".csv"))
-      
-      # Create summary by age category and meal preference
-      summary_cols <- c()
-      if ("age_category" %in% names(attendees)) {
-        summary_cols <- c(summary_cols, "age_category")
-      }
-      
-      if ("meal_preferences" %in% names(attendees)) {
-        summary_cols <- c(summary_cols, "meal_preferences")
-      }
-      
-      if (length(summary_cols) > 0) {
-        summary <- attendees %>%
-          group_by_at(vars(all_of(summary_cols))) %>%
-          summarize(count = n(), .groups = "drop") %>%
-          arrange_at(vars(all_of(summary_cols)))
-        
-        write_csv(summary, 
-                  paste0(tools::file_path_sans_ext(output_file), "_", meal_col, "_summary.csv"))
-      }
+      write_csv(age_summary, age_summary_file)
     }
   }
   
-  # Write the complete roster
-  write_csv(final_roster, output_file)
-  
-  # Create a roster summary text file
+  # Create summary text
   summary_text <- paste0(
-    "IFC MEAL ROSTER SUMMARY\n",
+    "MEAL ROSTER SUMMARY\n",
     "Wedding: Cyrena & Jon - June 20-23, 2025\n",
-    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n"
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "This directory contains meal rosters for each meal with detailed information about attendees.\n\n",
+    
+    "MEAL COUNTS:\n"
   )
   
-  # Add meal counts
-  for (i in 1:length(meal_list)) {
-    meal_col <- meal_list[i]
+  for (i in 1:length(meal_flags)) {
+    meal_flag <- meal_flags[i]
     meal_name <- meal_names[i]
     
-    # Get count and breakdown
-    total_count <- sum(final_roster[[meal_col]], na.rm = TRUE)
+    count <- sum(meal_roster[[meal_flag]], na.rm = TRUE)
     
-    veg_count <- if ("is_vegetarian" %in% names(final_roster)) {
-      sum(final_roster[[meal_col]] & final_roster$is_vegetarian, na.rm = TRUE)
-    } else {
-      0
+    veg_count <- if ("is_vegetarian" %in% names(meal_roster)) 
+      sum(meal_roster[[meal_flag]] & meal_roster$is_vegetarian, na.rm = TRUE) else NA
+    
+    special_count <- if ("has_special_diet" %in% names(meal_roster)) 
+      sum(meal_roster[[meal_flag]] & meal_roster$has_special_diet, na.rm = TRUE) else NA
+    
+    summary_text <- paste0(summary_text, 
+                           "- ", meal_name, ": ", count, " attendees")
+    
+    if (!is.na(veg_count)) {
+      summary_text <- paste0(summary_text, 
+                             " (", veg_count, " vegetarian)")
     }
     
-    special_diet_count <- if ("has_special_diet" %in% names(final_roster)) {
-      sum(final_roster[[meal_col]] & final_roster$has_special_diet, na.rm = TRUE)
-    } else {
-      0
-    }
-    
-    summary_text <- paste0(
-      summary_text,
-      meal_name, ":\n",
-      "- Total: ", total_count, "\n"
-    )
-    
-    if (veg_count > 0) {
-      summary_text <- paste0(summary_text, "- Vegetarian/Fish Only: ", veg_count, "\n")
-    }
-    
-    if (special_diet_count > 0) {
-      summary_text <- paste0(summary_text, "- Special Dietary Needs: ", special_diet_count, "\n")
+    if (!is.na(special_count)) {
+      summary_text <- paste0(summary_text, 
+                             " (", special_count, " special diet)")
     }
     
     summary_text <- paste0(summary_text, "\n")
   }
   
-  # Add notes
-  summary_text <- paste0(
-    summary_text,
-    "NOTES:\n",
-    "- Each meal has its own CSV file with complete attendee list\n",
-    "- Individual meal summary files show breakdowns by age category\n",
-    "- Special dietary needs are noted for each guest\n",
-    "- The main roster file contains all guests and their meal attendance\n"
-  )
+  summary_text <- paste0(summary_text, "\n",
+                         "FILES IN THIS DIRECTORY:\n",
+                         "- ", basename(output_file), ": Complete roster with all meals\n")
   
-  # Write the summary
-  writeLines(summary_text, paste0(tools::file_path_sans_ext(output_file), "_summary.txt"))
+  for (i in 1:length(meal_flags)) {
+    meal_flag <- meal_flags[i]
+    meal_name <- meal_names[i]
+    
+    meal_file <- paste0(
+      basename(tools::file_path_sans_ext(output_file)),
+      "_",
+      gsub(" ", "_", tolower(meal_name)),
+      ".csv"
+    )
+    
+    summary_text <- paste0(summary_text,
+                           "- ", meal_file, ": Attendees for ", meal_name, "\n")
+  }
   
-  cat("IFC meal roster generated:", output_file, "\n")
+  # Write summary
+  summary_file <- paste0(tools::file_path_sans_ext(output_file), "_summary.txt")
+  writeLines(summary_text, summary_file)
   
+  cat("Meal roster generated:", output_file, "\n")
+  
+  # Return the roster
   return(list(
-    meal_roster = final_roster
+    meal_roster = meal_roster
   ))
 }
-
-# Example usage (uncomment to use):
-# source("wedding-rsvp-tracker.R")
-# results <- generate_wedding_reports("guestlist.csv")
-# ifc_report <- generate_ifc_report(results, "ifc_guest_report.csv")
-# ifc_summary <- generate_ifc_summary(results, "ifc_summary.csv")
-# ifc_meal_roster <- generate_ifc_meal_roster(results, "ifc_meal_roster.csv")
