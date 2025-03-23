@@ -1,4 +1,4 @@
-# Wedding RSVP Workflow
+# Wedding RSVP Workflow - Fixed Version
 # This script demonstrates how to use all the wedding RSVP tracking components
 
 # Load the required packages
@@ -9,13 +9,51 @@ library(stringr)
 library(knitr)
 library(shiny)
 
-# Function to generate a detailed meal planning report
+# Check if we have the necessary packages for PDF generation
+check_pdf_dependencies <- function() {
+  pdf_packages <- c("rmarkdown", "knitr")
+  missing_packages <- pdf_packages[!sapply(pdf_packages, requireNamespace, quietly = TRUE)]
+  
+  if (length(missing_packages) > 0) {
+    cat("WARNING: The following packages required for PDF generation are missing:", 
+        paste(missing_packages, collapse = ", "), "\n")
+    cat("PDF reports will be skipped. To enable PDF generation, install these packages with:\n")
+    cat("install.packages(c('", paste(missing_packages, collapse = "', '"), "'))\n")
+    return(FALSE)
+  }
+  
+  # Check if we can generate PDFs (need LaTeX/TinyTeX)
+  if (!rmarkdown::pandoc_available()) {
+    cat("WARNING: Pandoc is not available. PDF generation will be skipped.\n")
+    cat("Make sure Pandoc is installed and on your PATH.\n")
+    return(FALSE)
+  }
+  
+  # Attempt to detect LaTeX installation
+  if (requireNamespace("tinytex", quietly = TRUE)) {
+    if (!tinytex::is_tinytex()) {
+      cat("WARNING: TinyTeX not detected. PDF generation may fail.\n")
+      cat("Consider installing TinyTeX with: tinytex::install_tinytex()\n")
+      # We'll still try to generate PDFs even without TinyTeX
+    }
+  } else {
+    cat("WARNING: The tinytex package is not installed. PDF detection not possible.\n")
+    cat("Consider installing with: install.packages('tinytex')\n")
+  }
+  
+  return(TRUE)
+}
+
+# Function to generate a detailed meal planning report with error handling
 generate_meal_planning_report <- function(results, output_file = "meal_planning_report.pdf") {
-  # Force directory creation
+  # Check if PDF generation is possible
+  can_generate_pdfs <- check_pdf_dependencies()
+  
+  # Force directory creation with absolute path
   output_dir <- dirname(output_file)
   if (output_dir != "." && output_dir != "") {
     dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-    cat("Ensuring output directory exists:", output_dir, "\n")
+    cat("Ensuring output directory exists:", normalizePath(output_dir), "\n")
   }
   
   # Get meal counts from results
@@ -79,12 +117,91 @@ generate_meal_planning_report <- function(results, output_file = "meal_planning_
     summarize(count = n()) %>%
     arrange(desc(count))
   
-  # Create a markdown report
-  rmd_content <- '
----
+  # Always write CSV versions of the reports (more reliable than PDF)
+  csv_base_name <- tools::file_path_sans_ext(output_file)
+  write_csv(meal_summary, paste0(csv_base_name, "_meal_summary.csv"))
+  write_csv(dietary_restrictions, paste0(csv_base_name, "_dietary_restrictions.csv"))
+  write_csv(meal_preferences, paste0(csv_base_name, "_meal_preferences.csv"))
+  
+  # Create a text summary for easy reference
+  summary_text <- paste0(
+    "MEAL PLANNING SUMMARY\n",
+    "Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    "== Meal Planning Summary ==\n\n"
+  )
+  
+  # Add meal summary to text
+  for (i in 1:nrow(meal_summary)) {
+    summary_text <- paste0(
+      summary_text,
+      meal_summary$Meal[i], ":\n",
+      "  On-Site Guests: ", meal_summary$On_Site_Guests[i], "\n",
+      "  Off-Site Guests: ", meal_summary$Off_Site_Guests[i], "\n",
+      "  Total: ", meal_summary$Total[i], "\n\n"
+    )
+  }
+  
+  # Add dietary restrictions
+  summary_text <- paste0(summary_text, "== Dietary Restrictions ==\n\n")
+  if (nrow(dietary_restrictions) > 0) {
+    for (i in 1:nrow(dietary_restrictions)) {
+      summary_text <- paste0(
+        summary_text,
+        dietary_restrictions$dietary_restrictions[i], ": ", 
+        dietary_restrictions$count[i], " guests\n"
+      )
+    }
+  } else {
+    summary_text <- paste0(summary_text, "No dietary restrictions recorded.\n")
+  }
+  
+  # Add meal preferences
+  summary_text <- paste0(summary_text, "\n== Meal Preferences ==\n\n")
+  if (nrow(meal_preferences) > 0) {
+    for (i in 1:nrow(meal_preferences)) {
+      summary_text <- paste0(
+        summary_text,
+        meal_preferences$meal_preferences[i], ": ", 
+        meal_preferences$count[i], " guests\n"
+      )
+    }
+  } else {
+    summary_text <- paste0(summary_text, "No meal preferences recorded.\n")
+  }
+  
+  # Add notes
+  summary_text <- paste0(summary_text, "\n== Important Notes ==\n\n",
+                         "1. Meal Inclusion by Stay:\n",
+                         "   - Friday night guests: Friday dinner, Saturday breakfast\n",
+                         "   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast\n",
+                         "   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast\n",
+                         "   - All wedding guests: Sunday lunch (wedding meal)\n\n",
+                         
+                         "2. Saturday Off-Site Guest Meals:\n",
+                         "   - Guests can choose to join for lunch only, dinner only, or both meals\n",
+                         "   - The counts above reflect these preferences from RSVP responses\n\n",
+                         
+                         "3. Dietary Information:\n",
+                         "   - Non-meat options should be available at all meals\n",
+                         "   - Please review the detailed dietary restrictions list and ensure appropriate options are available\n\n",
+                         
+                         "4. Catering Planning:\n",
+                         "   - Sunday lunch (wedding reception) is the largest meal requiring service for all guests\n",
+                         "   - Sunday dinner and Monday breakfast are special catering for overnight guests only\n"
+  )
+  
+  # Write the text summary
+  writeLines(summary_text, paste0(csv_base_name, "_summary.txt"))
+  cat("Meal planning text summary generated:", paste0(csv_base_name, "_summary.txt"), "\n")
+  
+  # Only attempt PDF if we can generate it
+  if (can_generate_pdfs) {
+    # Create a markdown report
+    rmd_content <- '---
 title: "Wedding Meal Planning Report"
 subtitle: "For Wedding: Cyrena & Jon - June 20-23, 2025"
-date: "`r format(Sys.Date(), "%B %d, %Y")`"
+date: "`r format(Sys.Date(), \'%B %d, %Y\')`"
 output: pdf_document
 ---
 
@@ -133,84 +250,174 @@ knitr::kable(dietary_restrictions,
    - Sunday lunch (wedding reception) is the largest meal requiring service for all guests
    - Sunday dinner and Monday breakfast are special catering for overnight guests only
 '
+    
+    # Write the RMD file
+    rmd_file <- tempfile(fileext = ".Rmd")
+    writeLines(rmd_content, rmd_file)
+    
+    # Define environment with parameters
+    env <- new.env()
+    env$meal_summary <- meal_summary
+    env$meal_preferences <- meal_preferences
+    env$dietary_restrictions <- dietary_restrictions
+    
+    # Render the PDF with error handling
+    tryCatch({
+      rmarkdown::render(
+        input = rmd_file,
+        output_file = output_file,
+        envir = env,
+        quiet = TRUE
+      )
+      cat("Meal planning PDF report generated:", output_file, "\n")
+    }, error = function(e) {
+      cat("Error generating meal planning PDF report:", conditionMessage(e), "\n")
+      cat("Using text and CSV reports instead.\n")
+    })
+    
+    # Clean up
+    unlink(rmd_file)
+  } else {
+    cat("Skipping PDF generation due to missing dependencies.\n")
+    cat("Text and CSV reports have been generated instead.\n")
+  }
   
-  # Write the RMD file
-  rmd_file <- tempfile(fileext = ".Rmd")
-  writeLines(rmd_content, rmd_file)
-  
-  # Render the PDF with error handling
-  tryCatch({
-    rmarkdown::render(
-      input = rmd_file,
-      output_file = output_file,
-      params = list(
-        meal_summary = meal_summary,
-        meal_preferences = meal_preferences,
-        dietary_restrictions = dietary_restrictions
-      ),
-      quiet = TRUE
-    )
-    cat("Meal planning report generated:", output_file, "\n")
-  }, error = function(e) {
-    cat("Error generating meal planning report:", conditionMessage(e), "\n")
-  })
-  
-  # Clean up
-  unlink(rmd_file)
+  # Return the data for potential further use
+  return(list(
+    meal_summary = meal_summary,
+    meal_preferences = meal_preferences,
+    dietary_restrictions = dietary_restrictions
+  ))
 }
 
-# Print working directory for debugging
-cat("Current working directory:", getwd(), "\n")
+# Function to clean guest data
+preprocess_guest_data <- function(guests) {
+  # Find rows with missing names
+  missing_names <- is.na(guests$first_name) | guests$first_name == ""
+  
+  if (any(missing_names)) {
+    cat("Found", sum(missing_names), "entries with missing first names.\n")
+    
+    # Create a "cleaning log" of issues
+    missing_name_guests <- guests[missing_names, ]
+    write_csv(missing_name_guests, "missing_name_guests.csv")
+    cat("Exported list of guests with missing names to missing_name_guests.csv\n")
+    
+    # For simple placeholder fix
+    guests$first_name[missing_names] <- ifelse(
+      !is.na(guests$last_name[missing_names]) & guests$last_name[missing_names] != "",
+      paste0("Guest of ", guests$last_name[missing_names]),
+      paste0("Guest #", which(missing_names))
+    )
+    
+    cat("Applied placeholder names for missing entries.\n")
+  }
+  
+  return(guests)
+}
 
-# File path to your guest list CSV
-# Replace this with the path to your actual file
-guest_list_file <- "guestlist.csv"
+# Modified workflow to address issues
+run_fixed_workflow <- function() {
+  # Print working directory for debugging
+  cat("Current working directory:", normalizePath(getwd()), "\n")
+  
+  # File path to your guest list CSV
+  guest_list_file <- "guestlist.csv"
+  
+  # Ensure the file exists
+  if (!file.exists(guest_list_file)) {
+    stop("Guest list file not found: ", guest_list_file)
+  }
+  
+  # SIMPLIFIED DIRECTORY HANDLING - Using absolute paths
+  reports_dir <- file.path(getwd(), "wedding_reports")
+  costs_dir <- file.path(getwd(), "wedding_costs")
+  emails_dir <- file.path(getwd(), "wedding_emails")
+  
+  # First remove any existing directories to avoid confusion
+  unlink(reports_dir, recursive = TRUE)
+  unlink(costs_dir, recursive = TRUE)
+  unlink(emails_dir, recursive = TRUE)
+  
+  # Then create fresh directories
+  dir.create(reports_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(costs_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(emails_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  cat("Created fresh directories for wedding reports\n")
+  
+  # Now source the main RSVP tracking scripts
+  source("wedding-rsvp-tracker.R")
+  source("cost-summary-generator.R")
+  source("generate-ifc-report.R")
+  
+  # Step 1: Read and preprocess guest data
+  cat("\n*** Step 1: Reading and preprocessing guest data... ***\n")
+  guest_data <- read_csv(guest_list_file,
+                         col_types = cols(.default = col_character()),
+                         na = c("", "NA", "N/A"))
+  
+  # Clean the guest data
+  clean_guest_data <- preprocess_guest_data(guest_data)
+  
+  # Save cleaned guest data
+  clean_guest_file <- file.path(reports_dir, "clean_guestlist.csv")
+  write_csv(clean_guest_data, clean_guest_file)
+  
+  # Step 2: Generate basic reports with clean data
+  cat("\n*** Step 2: Generating basic RSVP reports... ***\n")
+  results <- generate_wedding_reports(clean_guest_file)
+  
+  # Step 3: Export reports to CSV files
+  cat("\n*** Step 3: Exporting reports to CSV... ***\n")
+  export_reports(results, reports_dir)
+  
+  # Step 4: Generate cost summaries and PDFs
+  cat("\n*** Step 4: Generating cost summaries and PDFs... ***\n")
+  
+  # Check if the costs directory exists before running cost summary
+  if (!dir.exists(costs_dir)) {
+    cat("WARNING: Costs directory doesn't exist. Creating it now.\n")
+    dir.create(costs_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  
+  cost_results <- run_cost_summary(clean_guest_file)
+  
+  # Step 5: Generate IFC report
+  cat("\n*** Step 5: Generating Isabella Freedman Center report... ***\n")
+  ifc_report_path <- file.path(reports_dir, "ifc_guest_report")
+  
+  # Always generate CSV version first
+  ifc_csv_report <- generate_ifc_report(results, paste0(ifc_report_path, ".csv"))
+  
+  # Only attempt PDF if dependencies are available
+  if (check_pdf_dependencies()) {
+    tryCatch({
+      ifc_pdf_report <- generate_ifc_report(results, paste0(ifc_report_path, ".pdf"))
+    }, error = function(e) {
+      cat("Error generating IFC PDF report:", conditionMessage(e), "\n")
+      cat("Using CSV reports instead.\n")
+    })
+  }
+  
+  # Step 6: Generate meal planning summary report
+  cat("\n*** Step 6: Generating detailed meal planning report... ***\n")
+  meal_planning_path <- file.path(reports_dir, "meal_planning_report")
+  meal_planning_report <- generate_meal_planning_report(results, paste0(meal_planning_path, ".pdf"))
+  
+  # Step 7: Launch the dashboard (comment out if not needed)
+  cat("\n*** Step 7: Launching the dashboard... ***\n")
+  # This will launch the dashboard. Comment out if you don't want to run it immediately
+  shiny::runApp("app.R")
+  
+  cat("\n*** Wedding RSVP analysis complete! ***\n")
+  cat("\nReports can be found in:\n")
+  cat("- Main reports:", reports_dir, "\n")
+  cat("- Cost PDFs:", costs_dir, "\n")
+  cat("- Email templates:", emails_dir, "\n")
+  
+  return(results)
+}
 
-# SIMPLIFIED DIRECTORY HANDLING - Clean start
-# First remove any existing directories to avoid confusion
-unlink("wedding_reports", recursive = TRUE)
-unlink("wedding_costs", recursive = TRUE)
-unlink("wedding_emails", recursive = TRUE)
-
-# Then create fresh directories
-dir.create("wedding_reports", recursive = TRUE)
-dir.create("wedding_costs", recursive = TRUE)
-dir.create("wedding_emails", recursive = TRUE)
-
-cat("Created fresh directories for wedding reports\n")
-
-# Now source the main RSVP tracking scripts
-source("wedding-rsvp-tracker.R")
-source("cost-summary-generator.R")
-source("generate-ifc-report.R")
-
-# Step 1: Generate basic reports
-cat("\n*** Step 1: Generating basic RSVP reports... ***\n")
-results <- generate_wedding_reports(guest_list_file)
-
-# Step 2: Export reports to CSV files
-cat("\n*** Step 2: Exporting reports to CSV... ***\n")
-export_reports(results, "wedding_reports")
-
-# Step 3: Generate cost summaries and PDFs
-cat("\n*** Step 3: Generating cost summaries and PDFs... ***\n")
-cost_results <- run_cost_summary(guest_list_file)
-
-# Step 4: Generate IFC report
-cat("\n*** Step 4: Generating Isabella Freedman Center report... ***\n")
-ifc_report <- generate_ifc_report(results, "wedding_reports/ifc_guest_report.pdf")
-
-# Step 5: Generate meal planning summary report
-cat("\n*** Step 5: Generating detailed meal planning report... ***\n")
-generate_meal_planning_report(results, "wedding_reports/meal_planning_report.pdf")
-
-# Step 6: Launch the dashboard (comment out if not needed)
-cat("\n*** Step 6: Launching the dashboard... ***\n")
-# This will launch the dashboard. Comment out if you don't want to run it immediately
- shiny::runApp("app.R")
-
-cat("\n*** Wedding RSVP analysis complete! ***\n")
-cat("\nReports can be found in:\n")
-cat("- Main reports: wedding_reports\n")
-cat("- Cost PDFs: wedding_costs\n")
-cat("- Email templates: wedding_emails\n")
+# Run the fixed workflow
+run_fixed_workflow()

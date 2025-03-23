@@ -2,25 +2,25 @@ Party: Janey Lienau & Max Phillips
 Guests: Janey Lienau, Max Phillips
 Email: janeyrosebud@gmail.com
 Total Guests: 2
-Total Guest Charge: $389
+Total Guest Charge: $344
 
 Accommodation Summary:
-- Saturday night: 2 guests ($389)
+- Saturday night: 2 guests ($344)
 - Standard lodging: 2 guests
 
 Guest Charge Breakdown:
-- Saturday: $389
+- Saturday: $344
 
 Individual Guest Details:
 1. Janey Lienau
    - Staying: Saturday
    - Accommodation Type: Standard Lodging
-   - Saturday Guest Charge: $194.5
-   - Total Guest Charge: $194.5
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
 
 2. Max Phillips
    - Staying: Saturday
    - Accommodation Type: Standard Lodging
-   - Saturday Guest Charge: $194.5
-   - Total Guest Charge: $194.5
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
 

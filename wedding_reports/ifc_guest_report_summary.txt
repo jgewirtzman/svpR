@@ -5,9 +5,9 @@ Generated: March 23, 2025
 == Summary of Guest Stays ==
 
               Night Guests Standard_Lodging Camping Total_IFC_Charge Guest_Charge Host_Charge
-1   Friday, June 20     12               12       0             2970         1566        1404
-2 Saturday, June 21     30               30       0             7425         5835        1590
-3   Sunday, June 22     10               10       0                0            0           0
+1   Friday, June 20     12               12       0           2970.0         1296      1674.0
+2 Saturday, June 21     30               30       0           6187.5         4300      1887.5
+3   Sunday, June 22     10               10       0           1199.0          180      1019.0
 
 == Age Categories by Night ==
 
@@ -22,8 +22,8 @@ Generated: March 23, 2025
 # A tibble: 2 × 9
   Accommodation   Age_Category Count Friday_Count Saturday_Count Sunday_Count Total_IFC_Cost Guest_Charge
   <chr>           <chr>        <int>        <int>          <int>        <int>          <dbl>        <dbl>
-1 Standard Lodgi… Adults 21+ …    25           12             25           10          4208.        3178.
-2 Standard Lodgi… Guests 12-2…     5            0              5            0          1238.         972.
+1 Standard Lodgi… Adults 21+ …    25           12             25           10         10356.         5776
+2 Standard Lodgi… Guests 12-2…     5            0              5            0             0             0
 # ℹ 1 more variable: Host_Charge <dbl>
 
 == Meal Planning Summary ==
@@ -49,9 +49,9 @@ Generated: March 23, 2025
 
 == Financial Summary ==
 
-Total IFC Charge: $5445
-Total Guest Charge: $4151
-Total Host Charge: $2994
+Total IFC Charge: $10356.5
+Total Guest Charge: $5776
+Total Host Charge: $4580.5
 
 == Important Notes ==
 
