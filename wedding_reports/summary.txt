@@ -1,0 +1,37 @@
+WEDDING REPORT SUMMARY
+Wedding: Cyrena & Jon - June 20-23, 2025
+Generated: March 22, 2025
+
+== Attendance Summary ==
+Total Guests: 223
+Wedding Attending: 46
+Friday Attending: 13
+
+== Accommodation Summary ==
+Friday Night: 12
+Saturday Night: 30
+Sunday Night: 10
+Camping: 0
+Standard Lodging: 30
+
+== Financial Summary ==
+Total IFC Cost: $10,360
+Total Guest Charges: $5,776
+Total Host Charges: $4,584
+
+== Meal Counts ==
+Friday Dinner: 15
+Saturday Breakfast: 12
+Saturday Lunch: 41
+Saturday Dinner: 41
+Sunday Breakfast: 30
+Sunday Lunch (Wedding): 46
+Sunday Dinner: 10
+Monday Breakfast: 10
+
+== Dietary Information ==
+Vegetarian Meals: 11
+Special Dietary Needs: 14
+
+Reports have been generated in the following directory: wedding_reports
+

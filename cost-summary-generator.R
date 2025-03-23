@@ -7,19 +7,12 @@ library(tidyr)
 library(readr)
 library(stringr)
 library(knitr)
-library(rmarkdown)
 
 # Function to generate a cost summary for each party
-generate_cost_summary <- function(file_path) {
-  # Source the main RSVP tracking functions
-  # source("wedding-rsvp-tracker.R")
-  
-  # Run the main report generation
-  results <- generate_wedding_reports(file_path)
-  
-  # Get party list and guest costs
+generate_cost_summary <- function(results) {
+  # Extract party list and guest costs
   party_summary <- results$party_summary
-  guest_costs <- results$guest_costs
+  guests <- results$guests
   
   # Define cost constants for reference
   costs <- list(
@@ -33,7 +26,7 @@ generate_cost_summary <- function(file_path) {
   )
   
   # Create a cost breakdown by party with more details
-  party_costs <- guest_costs %>%
+  party_costs <- guests %>%
     group_by(party) %>%
     summarize(
       total_guests = n(),
@@ -42,34 +35,26 @@ generate_cost_summary <- function(file_path) {
       staying_saturday = sum(is_staying_saturday, na.rm = TRUE),
       staying_sunday = sum(is_staying_sunday, na.rm = TRUE),
       
-      # Camping vs. lodging counts for each night
-      friday_camping = sum(is_staying_friday & is_camping, na.rm = TRUE),
-      friday_lodging = sum(is_staying_friday & !is_camping, na.rm = TRUE),
-      saturday_camping = sum(is_staying_saturday & is_camping, na.rm = TRUE),
-      saturday_lodging = sum(is_staying_saturday & !is_camping, na.rm = TRUE),
-      
-      # Total camping and lodging counts
+      # Camping vs. lodging counts
       camping = sum(is_camping, na.rm = TRUE),
       standard_lodging = sum((is_staying_friday | is_staying_saturday) & !is_camping, na.rm = TRUE),
       
-      # Cost breakdowns by category - Guest charges only
-      total_friday_guest_lodging = sum(friday_guest_lodging_charge, na.rm = TRUE),
-      total_friday_guest_meals = sum(friday_guest_meals_charge, na.rm = TRUE),
+      # Cost breakdowns by category
+      total_friday_cost = sum(friday_ifc_cost, na.rm = TRUE),
+      total_saturday_cost = sum(saturday_ifc_cost, na.rm = TRUE),
+      total_sunday_cost = sum(sunday_ifc_meals, na.rm = TRUE),
+      
+      # Guest charges
       total_friday_guest_charge = sum(friday_guest_charge, na.rm = TRUE),
-      
-      total_saturday_guest_lodging = sum(saturday_guest_lodging_charge, na.rm = TRUE),
-      total_saturday_guest_meals = sum(saturday_guest_meals_charge, na.rm = TRUE),
       total_saturday_guest_charge = sum(saturday_guest_charge, na.rm = TRUE),
-      
       total_sunday_guest_charge = sum(sunday_guest_charge, na.rm = TRUE),
-      
-      total_guest_lodging = sum(friday_guest_lodging_charge + saturday_guest_lodging_charge, na.rm = TRUE),
-      total_guest_meals = sum(friday_guest_meals_charge + saturday_guest_meals_charge + sunday_guest_charge, na.rm = TRUE),
       grand_total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
       
-      # Additional financial information for hosts (not included in guest invoices)
-      total_ifc_charge = sum(total_cost, na.rm = TRUE),
-      total_host_charge = sum(total_host_charge, na.rm = TRUE)
+      # Host charges
+      total_friday_host_charge = sum(friday_host_charge, na.rm = TRUE),
+      total_saturday_host_charge = sum(saturday_host_charge, na.rm = TRUE),
+      total_sunday_host_charge = sum(sunday_host_charge, na.rm = TRUE),
+      grand_total_host_charge = sum(total_host_charge, na.rm = TRUE)
     ) %>%
     # Join with party_summary to get email and party name
     left_join(party_summary %>% select(party, party_name, party_email, guest_names), by = "party")
@@ -80,7 +65,7 @@ generate_cost_summary <- function(file_path) {
     party_info <- party_costs %>% filter(party == p)
     
     # Get all guests in this party
-    party_guests <- guest_costs %>% 
+    party_guests <- guests %>% 
       filter(party == p) %>%
       arrange(desc(total_guest_charge))
     
@@ -131,16 +116,12 @@ generate_cost_summary <- function(file_path) {
     
     if (party_info$staying_friday > 0) {
       summary_text <- paste0(summary_text,
-                             "- Friday: $", party_info$total_friday_guest_charge, "\n",
-                             "  - Lodging: $", party_info$total_friday_guest_lodging, "\n",
-                             "  - Meals: $", party_info$total_friday_guest_meals, "\n")
+                             "- Friday: $", party_info$total_friday_guest_charge, "\n")
     }
     
     if (party_info$staying_saturday > 0) {
       summary_text <- paste0(summary_text,
-                             "- Saturday: $", party_info$total_saturday_guest_charge, "\n", 
-                             "  - Lodging: $", party_info$total_saturday_guest_lodging, "\n",
-                             "  - Meals: $", party_info$total_saturday_guest_meals, "\n")
+                             "- Saturday: $", party_info$total_saturday_guest_charge, "\n")
     }
     
     if (party_info$staying_sunday > 0) {
@@ -179,37 +160,15 @@ generate_cost_summary <- function(file_path) {
         "   - Accommodation Type: ", accommodation_type, "\n"
       )
       
-      # Add meal information - only for applicable nights
-      if (length(staying_days) > 0) {
-        guest_str <- paste0(guest_str, "   - Included Meals:\n")
-        
-        # Only add meal info for nights the guest is staying
-        if(guest$is_staying_friday) {
-          guest_str <- paste0(guest_str, "     * Friday: Dinner, Saturday: Breakfast\n")
-        }
-        if(guest$is_staying_saturday) {
-          guest_str <- paste0(guest_str, "     * Saturday: Lunch, Dinner, Sunday: Breakfast\n")
-        }
-        if(guest$is_staying_sunday) {
-          guest_str <- paste0(guest_str, "     * Sunday: Dinner, Monday: Breakfast (special catering)\n")
-        }
-      } else {
-        guest_str <- paste0(guest_str, "   - No overnight meals included\n")
-      }
-      
       # Add cost information - only for applicable nights
       if(guest$is_staying_friday) {
         guest_str <- paste0(guest_str, 
-                            "   - Friday Guest Charge: $", guest$friday_guest_charge, 
-                            " (Lodging: $", guest$friday_guest_lodging_charge, 
-                            ", Meals: $", guest$friday_guest_meals_charge, ")\n")
+                            "   - Friday Guest Charge: $", guest$friday_guest_charge, "\n")
       }
       
       if(guest$is_staying_saturday) {
         guest_str <- paste0(guest_str, 
-                            "   - Saturday Guest Charge: $", guest$saturday_guest_charge, 
-                            " (Lodging: $", guest$saturday_guest_lodging_charge, 
-                            ", Meals: $", guest$saturday_guest_meals_charge, ")\n")
+                            "   - Saturday Guest Charge: $", guest$saturday_guest_charge, "\n")
       }
       
       if(guest$is_staying_sunday) {
@@ -218,10 +177,10 @@ generate_cost_summary <- function(file_path) {
       }
       
       # Add total guest charge
-      guest_str <- paste0(guest_str, 
-                          "   - Total Guest Charge: $", guest$total_guest_charge,
-                          " (Lodging: $", (guest$friday_guest_lodging_charge + guest$saturday_guest_lodging_charge), 
-                          ", Meals: $", (guest$friday_guest_meals_charge + guest$saturday_guest_meals_charge + guest$sunday_guest_charge), ")\n")
+      if(guest$total_guest_charge > 0) {
+        guest_str <- paste0(guest_str, 
+                            "   - Total Guest Charge: $", guest$total_guest_charge, "\n")
+      }
       
       return(guest_str)
     }), collapse = "\n")
@@ -248,123 +207,8 @@ generate_cost_summary <- function(file_path) {
   ))
 }
 
-# Function to generate CSV-based cost summaries for each party
-generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
-  # Create directory if it doesn't exist
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-  cat("Ensuring output directory exists:", output_dir, "\n")
-  
-  # Generate a CSV for each party
-  for (party_detail in results$party_details) {
-    # Skip parties with $0 charge
-    if (party_detail$total_guest_charge == 0) {
-      cat("Skipping $0 charge party:", party_detail$party_name, "\n")
-      next
-    }
-    
-    # Get party details
-    party_id <- party_detail$party
-    party_name <- party_detail$party_name
-    
-    # Create a unique filename
-    filename <- file.path(output_dir, paste0(
-      "cost_summary_", 
-      gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".csv"
-    ))
-    
-    # Create a party info table
-    party_info <- data.frame(
-      Category = c(
-        "Party Name", 
-        "Email", 
-        "Total Guests",
-        "Total Guest Charge"
-      ),
-      Value = c(
-        party_detail$party_name, 
-        party_detail$email, 
-        length(strsplit(party_detail$guest_names, ", ")[[1]]),
-        paste0("$", format(party_detail$total_guest_charge, big.mark = ","))
-      )
-    )
-    
-    # Create a night breakdown table - only for applicable nights
-    night_info <- data.frame(
-      Night = character(),
-      Status = character(),
-      Charge = character(),
-      stringsAsFactors = FALSE
-    )
-    
-    if (party_detail$staying_friday) {
-      night_info <- rbind(night_info, data.frame(
-        Night = "Friday, June 20",
-        Status = "Staying",
-        Charge = "See breakdown below",
-        stringsAsFactors = FALSE
-      ))
-    }
-    
-    if (party_detail$staying_saturday) {
-      night_info <- rbind(night_info, data.frame(
-        Night = "Saturday, June 21",
-        Status = "Staying",
-        Charge = "See breakdown below",
-        stringsAsFactors = FALSE
-      ))
-    }
-    
-    if (party_detail$staying_sunday) {
-      night_info <- rbind(night_info, data.frame(
-        Night = "Sunday, June 22",
-        Status = "Staying",
-        Charge = "See breakdown below",
-        stringsAsFactors = FALSE
-      ))
-    }
-    
-    # Write to CSV
-    write_csv(party_info, filename)
-    
-    if (nrow(night_info) > 0) {
-      write_csv(night_info, file.path(output_dir, paste0(
-        "nights_", 
-        gsub("[^a-zA-Z0-9]", "_", party_name), 
-        ".csv"
-      )))
-    }
-    
-    # Also create a text version for easy access
-    text_filename <- file.path(output_dir, paste0(
-      "cost_summary_", 
-      gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".txt"
-    ))
-    
-    writeLines(party_detail$summary, text_filename)
-    
-    # Generate an elegant invoice PDF for the party
-    invoice_filename <- file.path(output_dir, paste0(
-      "invoice_", 
-      gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".txt"  # Note: In production, this would be .pdf
-    ))
-    
-    # For this example, we'll create a text representation of what would be in the PDF
-    invoice_content <- generate_invoice_content(party_detail)
-    writeLines(invoice_content, invoice_filename)
-    
-    cat("Generated cost summary for party:", party_name, "\n")
-  }
-  
-  cat("Generated", length(results$party_details), "cost summaries in", output_dir, "\n")
-}
-
-# Helper function to generate invoice content 
+# Function to generate invoice text for each party
 generate_invoice_content <- function(party_detail) {
-  # This would normally generate a PDF, but for this example we'll create formatted text
-  
   # Create header
   invoice_text <- paste0(
     "===============================================================\n",
@@ -429,11 +273,93 @@ generate_invoice_content <- function(party_detail) {
   return(invoice_text)
 }
 
-# Function to generate simplified emails with cleaner format
+# Function to generate cost PDFs and invoices
+generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
+  # Create directory if it doesn't exist
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  cat("Ensuring output directory exists:", output_dir, "\n")
+  
+  # Generate a cost summary for all parties
+  cost_summary <- generate_cost_summary(results)
+  
+  # Generate files for each party with costs > 0
+  for (party_detail in cost_summary$party_details) {
+    # Skip parties with $0 charge
+    if (party_detail$total_guest_charge == 0) {
+      cat("Skipping $0 charge party:", party_detail$party_name, "\n")
+      next
+    }
+    
+    # Get party details
+    party_id <- party_detail$party
+    party_name <- party_detail$party_name
+    
+    # Create a unique filename for the cost summary
+    filename <- file.path(output_dir, paste0(
+      "cost_summary_", 
+      gsub("[^a-zA-Z0-9]", "_", party_name), 
+      ".txt"
+    ))
+    
+    # Write the cost summary
+    writeLines(party_detail$summary, filename)
+    
+    # Generate an invoice text file
+    invoice_filename <- file.path(output_dir, paste0(
+      "invoice_", 
+      gsub("[^a-zA-Z0-9]", "_", party_name), 
+      ".txt"
+    ))
+    
+    # Generate and write the invoice content
+    invoice_content <- generate_invoice_content(party_detail)
+    writeLines(invoice_content, invoice_filename)
+    
+    cat("Generated cost summary and invoice for party:", party_name, "\n")
+  }
+  
+  # Generate a summary of all costs
+  summary_text <- paste0(
+    "WEDDING COST SUMMARY\n",
+    "Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "Total Parties with Charges: ", sum(sapply(cost_summary$party_details, function(pd) pd$total_guest_charge > 0)), "\n",
+    "Total Guest Charges: $", format(sum(cost_summary$party_costs$grand_total_guest_charge, na.rm = TRUE), big.mark = ","), "\n",
+    "Total Host Charges: $", format(sum(cost_summary$party_costs$grand_total_host_charge, na.rm = TRUE), big.mark = ","), "\n\n",
+    
+    "Cost breakdown by night:\n",
+    "- Friday: $", format(sum(cost_summary$party_costs$total_friday_cost, na.rm = TRUE), big.mark = ","), "\n",
+    "  - Guest charges: $", format(sum(cost_summary$party_costs$total_friday_guest_charge, na.rm = TRUE), big.mark = ","), "\n",
+    "  - Host charges: $", format(sum(cost_summary$party_costs$total_friday_host_charge, na.rm = TRUE), big.mark = ","), "\n",
+    
+    "- Saturday: $", format(sum(cost_summary$party_costs$total_saturday_cost, na.rm = TRUE), big.mark = ","), "\n",
+    "  - Guest charges: $", format(sum(cost_summary$party_costs$total_saturday_guest_charge, na.rm = TRUE), big.mark = ","), "\n",
+    "  - Host charges: $", format(sum(cost_summary$party_costs$total_saturday_host_charge, na.rm = TRUE), big.mark = ","), "\n",
+    
+    "- Sunday: $", format(sum(cost_summary$party_costs$total_sunday_cost, na.rm = TRUE), big.mark = ","), "\n",
+    "  - Guest charges: $", format(sum(cost_summary$party_costs$total_sunday_guest_charge, na.rm = TRUE), big.mark = ","), "\n",
+    "  - Host charges: $", format(sum(cost_summary$party_costs$total_sunday_host_charge, na.rm = TRUE), big.mark = ","), "\n\n",
+    
+    "Cost summaries and invoices have been generated in the directory: ", output_dir, "\n"
+  )
+  
+  # Write the summary to a file
+  writeLines(summary_text, file.path(output_dir, "cost_summary.txt"))
+  
+  cat("Generated cost summaries and invoices for", sum(sapply(cost_summary$party_details, function(pd) pd$total_guest_charge > 0)), "parties in", output_dir, "\n")
+  
+  return(cost_summary)
+}
+
+# Function to generate simplified emails
 generate_simplified_emails <- function(results, output_dir = "wedding_emails") {
   # Create directory if it doesn't exist
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
   cat("Ensuring email directory exists:", output_dir, "\n")
+  
+  # Generate cost summary
+  cost_summary <- generate_cost_summary(results)
   
   # Simplified email template
   email_template <- "
@@ -465,12 +391,14 @@ Cyrena & Jon
 "
   
   # Generate an email for each party with a charge > 0
-  for (party_detail in results$party_details) {
+  email_count <- 0
+  for (party_detail in cost_summary$party_details) {
     # Skip parties with $0 charge
     if (party_detail$total_guest_charge == 0) {
-      cat("Skipping $0 charge party for email:", party_detail$party_name, "\n")
       next
     }
+    
+    email_count <- email_count + 1
     
     # Get party details
     party_id <- party_detail$party
@@ -517,94 +445,10 @@ Cyrena & Jon
     ))
     
     # Write email to file
-    write(email_content, filename)
-    
-    cat("Generated email for party:", party_name, "\n")
+    writeLines(email_content, filename)
   }
   
-  cat("Generated emails for", sum(sapply(results$party_details, function(pd) pd$total_guest_charge > 0)), "parties in", output_dir, "\n")
-}
-
-# Original function to generate a complete email for each party
-generate_cost_emails <- function(results, output_dir = "wedding_emails") {
-  # Force directory creation
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-  cat("Ensuring email directory exists:", output_dir, "\n")
-  
-  # Email template
-  email_template <- "
-To: %EMAIL%
-Subject: Your Wedding Accommodation Details and Costs
-
-Dear %PARTY_NAME%,
-
-Thank you for your RSVP to our wedding! We're excited to have you join us for this special occasion.
-
-Here's a summary of your accommodation details and costs:
-
-%DETAILS%
-
-IMPORTANT NOTES:
-- Meals included with overnight stays:
-  - Friday stays include: Friday dinner and Saturday breakfast
-  - Saturday stays include: Saturday lunch, Saturday dinner, and Sunday breakfast
-  - Sunday stays include: Special catering for Sunday dinner and Monday breakfast
-- Wedding reception meal (Sunday lunch) is included for all wedding guests.
-
-Payment Options:
-1. Venmo: @wedding-account
-2. Zelle: payments@wedding-email.com
-3. Check: Mail to Wedding Couple, 123 Wedding Lane, Wedding City, WS 12345
-
-Please make your payment by May 15, 2025.
-
-If you have any questions, please don't hesitate to reach out to us at help@wedding-email.com or call (555) 123-4567.
-
-Looking forward to celebrating with you!
-
-Best wishes,
-Jon & Cyrena
-"
-  
-  # Generate an email for each party
-  for (party_detail in results$party_details) {
-    # Skip parties with $0 charge
-    if (party_detail$total_guest_charge == 0) {
-      cat("Skipping $0 charge party for detailed email:", party_detail$party_name, "\n")
-      next
-    }
-    
-    # Get party details
-    party_id <- party_detail$party
-    party_name <- party_detail$party_name
-    party_email <- party_detail$email
-    party_details <- party_detail$summary
-    
-    # Create email content
-    email_content <- email_template
-    email_content <- gsub("%PARTY_NAME%", party_name, email_content)
-    email_content <- gsub("%EMAIL%", party_email, email_content)
-    email_content <- gsub("%DETAILS%", party_details, email_content)
-    
-    # Create a unique filename
-    filename <- file.path(output_dir, paste0(
-      "detailed_email_", 
-      gsub("[^a-zA-Z0-9]", "_", party_name), 
-      ".txt"
-    ))
-    
-    # Write email to file
-    tryCatch({
-      write(email_content, filename)
-    }, error = function(e) {
-      cat("Error generating email for party", party_name, ":", conditionMessage(e), "\n")
-    })
-  }
-  
-  cat("Generated", sum(sapply(results$party_details, function(pd) pd$total_guest_charge > 0)), "detailed cost emails in", output_dir, "\n")
-  
-  # Also generate simplified emails
-  generate_simplified_emails(results, output_dir)
+  cat("Generated", email_count, "emails in", output_dir, "\n")
 }
 
 # Main function to run the cost summary generation
@@ -612,25 +456,18 @@ run_cost_summary <- function(file_path) {
   # Print current working directory for debugging
   cat("Current working directory for cost summary:", getwd(), "\n")
   
-  # Force directory creation right at the start
-  dir.create("wedding_costs", showWarnings = FALSE, recursive = TRUE)
-  dir.create("wedding_emails", showWarnings = FALSE, recursive = TRUE)
+  # Generate reports with the wedding RSVP tracker
+  results <- generate_wedding_reports(file_path)
   
-  # Ensure we're using simple directory paths, not nested ones
+  # Use simple directory paths
   costs_dir <- "wedding_costs"
   emails_dir <- "wedding_emails"
   
-  # Generate cost summaries
-  results <- generate_cost_summary(file_path)
+  # Generate cost PDFs and invoices
+  cost_summary <- generate_cost_pdfs(results, costs_dir)
   
-  # Generate CSVs and invoices - using simple paths
-  generate_cost_pdfs(results, costs_dir)
+  # Generate emails 
+  generate_simplified_emails(results, emails_dir)
   
-  # Generate emails - using simple paths 
-  generate_cost_emails(results, emails_dir)
-  
-  return(results)
+  return(cost_summary)
 }
-
-# Example usage:
-# results <- run_cost_summary("path/to/guestlist.csv")

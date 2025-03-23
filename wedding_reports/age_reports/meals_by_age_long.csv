@@ -1,0 +1,33 @@
+meal,age_category,count,vegetarian_count,special_diet_count
+Friday Dinner,Adults 21+ Room,15,11,9
+Saturday Breakfast,Adults 21+ Room,12,11,9
+Saturday Lunch,Adults 21+ Room,35,11,9
+Saturday Dinner,Adults 21+ Room,35,11,9
+Sunday Breakfast,Adults 21+ Room,25,11,9
+Sunday Lunch (Wedding),Adults 21+ Room,40,11,9
+Sunday Dinner,Adults 21+ Room,10,11,9
+Monday Breakfast,Adults 21+ Room,10,11,9
+Friday Dinner,Guests 12-21 Room,0,0,5
+Saturday Breakfast,Guests 12-21 Room,0,0,5
+Saturday Lunch,Guests 12-21 Room,5,0,5
+Saturday Dinner,Guests 12-21 Room,5,0,5
+Sunday Breakfast,Guests 12-21 Room,5,0,5
+Sunday Lunch (Wedding),Guests 12-21 Room,5,0,5
+Sunday Dinner,Guests 12-21 Room,0,0,5
+Monday Breakfast,Guests 12-21 Room,0,0,5
+Friday Dinner,Children <5 Room,0,0,0
+Saturday Breakfast,Children <5 Room,0,0,0
+Saturday Lunch,Children <5 Room,1,0,0
+Saturday Dinner,Children <5 Room,1,0,0
+Sunday Breakfast,Children <5 Room,0,0,0
+Sunday Lunch (Wedding),Children <5 Room,1,0,0
+Sunday Dinner,Children <5 Room,0,0,0
+Monday Breakfast,Children <5 Room,0,0,0
+Friday Dinner,Children 5-12 Room,0,0,0
+Saturday Breakfast,Children 5-12 Room,0,0,0
+Saturday Lunch,Children 5-12 Room,0,0,0
+Saturday Dinner,Children 5-12 Room,0,0,0
+Sunday Breakfast,Children 5-12 Room,0,0,0
+Sunday Lunch (Wedding),Children 5-12 Room,0,0,0
+Sunday Dinner,Children 5-12 Room,0,0,0
+Monday Breakfast,Children 5-12 Room,0,0,0

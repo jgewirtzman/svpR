@@ -1,0 +1,1175 @@
+# Wedding RSVP Tracker and Cost Calculator
+# This script processes the guest list CSV and generates reports for:
+# 1. Party names and emails
+# 2. Accommodation counts and costs
+# 3. Meal counts for guests (both on-site and off-site)
+# 4. Age categories for room and accommodation planning
+# 5. Financial calculations for guests, IFC, and hosts
+
+# Load required libraries
+library(dplyr)
+library(tidyr)
+library(readr)
+library(stringr)
+
+# Function to read in guest list data
+read_guest_list <- function(file_path) {
+  # Read the CSV file
+  guests <- read_csv(file_path, 
+                     col_types = cols(.default = col_character()),
+                     na = c("", "NA", "N/A"))
+  
+  # Clean column names (remove spaces, etc.)
+  names(guests) <- names(guests) %>%
+    str_to_lower() %>%
+    str_replace_all(" ", "_") %>%
+    str_replace_all("[^a-z0-9_]", "")
+  
+  # Print column names for debugging
+  cat("Available columns in the dataset:\n")
+  cat(paste(names(guests), collapse = ", "), "\n")
+  
+  return(guests)
+}
+
+# Read in financial rate information
+read_rate_information <- function(file_path = "charge_rates.csv") {
+  # Check if the file exists
+  if (!file.exists(file_path)) {
+    warning("Rate information file not found: ", file_path)
+    return(NULL)
+  }
+  
+  # Read the CSV file
+  rates <- read_csv(file_path, 
+                    col_types = cols(.default = col_character()),
+                    na = c("", "NA", "N/A"))
+  
+  # Clean column names
+  names(rates) <- names(rates) %>%
+    str_to_lower() %>%
+    str_replace_all(" ", "_") %>%
+    str_replace_all("[^a-z0-9_]", "")
+  
+  # Convert numeric columns
+  numeric_cols <- c("ifc_rate", "gratuity", "expected_guest_count", "total_ifc_revenue", 
+                    "listed_standard_guest_rate", "listed_standard_guest_meal_rate", 
+                    "per_guest_charge", "total_guest_charge", "total_host_charge")
+  
+  rates <- rates %>%
+    mutate(across(all_of(numeric_cols), as.numeric))
+  
+  return(rates)
+}
+
+# Helper function to detect and handle various column name formats
+find_column_by_pattern <- function(df, patterns) {
+  for (pattern in patterns) {
+    matching_cols <- grep(pattern, names(df), ignore.case = TRUE, value = TRUE)
+    if (length(matching_cols) > 0) {
+      return(matching_cols[1])
+    }
+  }
+  return(NULL)
+}
+
+# Function to generate party-level summary
+generate_party_summary <- function(guests) {
+  # Find the email column - handle cases where email might have different names
+  email_cols <- grep("email", names(guests), ignore.case = TRUE, value = TRUE)
+  
+  # Check if we found any email columns
+  if (length(email_cols) == 0) {
+    warning("No email column found in the data")
+    guests$email_column <- NA  # Create a dummy column
+    email_col_name <- "email_column"
+  } else {
+    # Use the first email column found
+    email_col_name <- email_cols[1]
+    # Rename it to a standard name for use in the function
+    guests$email_column <- guests[[email_col_name]]
+  }
+  
+  # Create descriptive party names based on guest names
+  guests <- guests %>%
+    group_by(party) %>%
+    mutate(
+      party_name = case_when(
+        n() == 1 ~ paste0(first_name, " ", last_name),
+        n() == 2 ~ paste0(first(first_name), " ", first(last_name), " & ", last(first_name), " ", last(last_name)),
+        TRUE ~ paste0(first(last_name), " Family (", n(), " guests)")
+      )
+    ) %>%
+    ungroup()
+  
+  # Group by party and get email
+  party_summary <- guests %>%
+    group_by(party) %>%
+    summarize(
+      party_name = first(party_name),
+      party_email = first(na.omit(email_column)),
+      total_guests = n(),
+      guest_names = paste(paste(first_name, last_name), collapse = ", "),
+      wedding_attending = sum(wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
+      wedding_declining = sum(wedding_rsvp == "Regretfully Decline", na.rm = TRUE),
+      wedding_no_response = sum(is.na(wedding_rsvp)),
+      friday_attending = sum(fridayshabbat_rsvp == "Joyfully Accept", na.rm = TRUE),
+      saturday_attending = sum(saturday_onsite_rsvp == "Yes, I will join on Saturday" | 
+                                 saturday_offsite_rsvp == "Yes, I will join for lunch only" |
+                                 saturday_offsite_rsvp == "Yes, I will join for dinner only" |
+                                 saturday_offsite_rsvp == "Yes, I will join for lunch and dinner", 
+                               na.rm = TRUE)
+    )
+  
+  return(party_summary)
+}
+
+# Function to assign age categories to guests based on age data
+assign_age_categories <- function(guests, age_data_path = "Wedding Budget Invite List.csv") {
+  # If an age data file is provided, use it
+  if (!is.null(age_data_path) && file.exists(age_data_path)) {
+    # Read the age data file
+    age_data <- read_csv(age_data_path,
+                         col_types = cols(.default = col_character()),
+                         na = c("", "NA", "N/A"))
+    
+    # Clean column names
+    names(age_data) <- names(age_data) %>%
+      str_to_lower() %>%
+      str_replace_all(" ", "_")
+    
+    # Extract name and age information
+    if (all(c("first_name", "last_name", "age") %in% names(age_data))) {
+      age_info <- age_data %>%
+        select(first_name, last_name, age) %>%
+        filter(!is.na(first_name) & !is.na(last_name))
+      
+      # Map age categories to our defined categories
+      age_info <- age_info %>%
+        mutate(
+          age_category = case_when(
+            age == "Adult" ~ "Adults 21+ Room",
+            age == "Child (13+)" ~ "Guests 12-21 Room",
+            age == "Child (5-12)" ~ "Children 5-12 Room",
+            age == "Child (0-4)" ~ "Children <5 Room",
+            TRUE ~ "Unknown"
+          )
+        )
+      
+      # Merge with guests based on first and last name
+      guests <- guests %>%
+        left_join(age_info %>% select(first_name, last_name, age_category),
+                  by = c("first_name", "last_name"))
+      
+      # Fill in missing age categories
+      guests <- guests %>%
+        mutate(
+          age_category = ifelse(is.na(age_category), "Adults 21+ Room", age_category)
+        )
+      
+      cat("Age categories assigned from file:", age_data_path, "\n")
+    } else {
+      warning("Age data file does not contain required columns: first_name, last_name, and age")
+      # Use default assignment
+      guests$age_category <- "Adults 21+ Room"
+    }
+  } else {
+    # Use default assignment
+    guests$age_category <- "Adults 21+ Room"
+    warning("No age data file provided. All guests categorized as adults by default.")
+  }
+  
+  # Update camping adults
+  # Check if is_camping column exists (should be created by calculate_accommodation_costs)
+  if ("is_camping" %in% names(guests)) {
+    guests <- guests %>%
+      mutate(
+        age_category = ifelse(
+          age_category == "Adults 21+ Room" & is_camping,
+          "Adults 21+ Camping",
+          age_category
+        )
+      )
+  }
+  
+  return(guests)
+}
+
+# Function to count guests by age category
+count_by_age_category <- function(guests) {
+  # Count guests by age category and accommodation
+  age_counts <- guests %>%
+    group_by(age_category) %>%
+    summarize(
+      total_guests = n(),
+      friday_count = sum(is_staying_friday, na.rm = TRUE),
+      saturday_count = sum(is_staying_saturday, na.rm = TRUE),
+      sunday_count = sum(is_staying_sunday, na.rm = TRUE),
+      total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
+      total_host_charge = sum(total_host_charge, na.rm = TRUE),
+      total_cost = sum(total_cost, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_guests))
+  
+  return(age_counts)
+}
+
+# Function to calculate accommodation costs with financial breakdown
+calculate_accommodation_costs <- function(guests, age_data_path = "Wedding Budget Invite List.csv", 
+                                          rates_path = "charge_rates.csv") {
+  # Read rate information if available
+  rates_data <- read_rate_information(rates_path)
+  
+  # Use default cost constants if rate information is not available
+  if (is.null(rates_data)) {
+    cat("Using default cost constants...\n")
+    # Define default cost constants
+    SATURDAY_HOUSING_COST <- 136
+    SATURDAY_MEALS_COST <- 36
+    SATURDAY_CAMPING_GROUNDS <- 54
+    FRIDAY_HOUSING_COST <- 72
+    FRIDAY_MEALS_COST <- 36
+    FRIDAY_CAMPING_GROUNDS <- 36
+    SUNDAY_MEALS_COST <- 18
+    
+    # Guest charges (what guests pay)
+    GUEST_FRIDAY_HOUSING <- 72
+    GUEST_FRIDAY_MEALS <- 36
+    GUEST_FRIDAY_CAMPING <- 36
+    GUEST_SATURDAY_HOUSING <- 136
+    GUEST_SATURDAY_MEALS <- 36
+    GUEST_SATURDAY_CAMPING <- 54
+    GUEST_SUNDAY_MEALS <- 18
+    
+    # Host charges (what hosts cover)
+    HOST_FRIDAY_HOUSING <- 0
+    HOST_FRIDAY_MEALS <- 0
+    HOST_FRIDAY_CAMPING <- 0
+    HOST_SATURDAY_HOUSING <- 0
+    HOST_SATURDAY_MEALS <- 0
+    HOST_SATURDAY_CAMPING <- 0
+    HOST_SUNDAY_MEALS <- 0
+  } else {
+    cat("Using rate information from file:", rates_path, "\n")
+    
+    # Create lookup tables for rates by night and category
+    rate_lookup <- rates_data %>%
+      select(night, category, ifc_rate, gratuity, per_guest_charge, total_guest_charge, total_host_charge) %>%
+      group_by(night, category) %>%
+      summarize(
+        ifc_rate = first(ifc_rate),
+        gratuity = first(gratuity),
+        per_guest_charge = first(per_guest_charge),
+        guest_charge_pct = first(total_guest_charge) / (first(total_guest_charge) + first(total_host_charge)),
+        host_charge_pct = first(total_host_charge) / (first(total_guest_charge) + first(total_host_charge)),
+        .groups = 'drop'
+      )
+    
+    # Extract rates for each category
+    friday_rates <- rate_lookup %>% filter(night == "Friday")
+    saturday_rates <- rate_lookup %>% filter(night == "Saturday")
+    sunday_rates <- rate_lookup %>% filter(night == "Sunday")
+    
+    # Set constants from the rate data
+    # Standard adult room rates
+    FRIDAY_HOUSING_COST <- friday_rates %>% 
+      filter(category == "Adults 21+ Room") %>% 
+      pull(ifc_rate) %>% 
+      first()
+    
+    SATURDAY_HOUSING_COST <- saturday_rates %>% 
+      filter(category == "Adults 21+ Room") %>% 
+      pull(ifc_rate) %>% 
+      first()
+    
+    # Camping rates
+    FRIDAY_CAMPING_GROUNDS <- friday_rates %>% 
+      filter(category == "Adults 21+ Camping") %>% 
+      pull(ifc_rate) %>% 
+      first()
+    
+    SATURDAY_CAMPING_GROUNDS <- saturday_rates %>% 
+      filter(category == "Adults 21+ Camping") %>% 
+      pull(ifc_rate) %>% 
+      first()
+    
+    # Meal rates (same for all categories)
+    FRIDAY_MEALS_COST <- friday_rates %>% 
+      filter(category == "Adults 21+ Room") %>% 
+      pull(gratuity) %>% 
+      first()
+    
+    SATURDAY_MEALS_COST <- saturday_rates %>% 
+      filter(category == "Adults 21+ Room") %>% 
+      pull(gratuity) %>% 
+      first()
+    
+    SUNDAY_MEALS_COST <- sunday_rates %>% 
+      filter(category == "Adults 21+ Room") %>% 
+      pull(gratuity) %>% 
+      first()
+    
+    # Guest charges
+    GUEST_FRIDAY_HOUSING <- friday_rates %>% 
+      filter(category == "Adults 21+ Room") %>% 
+      pull(per_guest_charge) %>% 
+      first()
+    
+    GUEST_FRIDAY_CAMPING <- friday_rates %>% 
+      filter(category == "Adults 21+ Camping") %>% 
+      pull(per_guest_charge) %>% 
+      first()
+    
+    GUEST_SATURDAY_HOUSING <- saturday_rates %>% 
+      filter(category == "Adults 21+ Room") %>% 
+      pull(per_guest_charge) %>% 
+      first()
+    
+    GUEST_SATURDAY_CAMPING <- saturday_rates %>% 
+      filter(category == "Adults 21+ Camping") %>% 
+      pull(per_guest_charge) %>% 
+      first()
+    
+    GUEST_FRIDAY_MEALS <- FRIDAY_MEALS_COST
+    GUEST_SATURDAY_MEALS <- SATURDAY_MEALS_COST
+    GUEST_SUNDAY_MEALS <- SUNDAY_MEALS_COST
+    
+    # Host charges (calculated as the difference between IFC rate and guest charge)
+    HOST_FRIDAY_HOUSING <- FRIDAY_HOUSING_COST - GUEST_FRIDAY_HOUSING
+    HOST_FRIDAY_CAMPING <- FRIDAY_CAMPING_GROUNDS - GUEST_FRIDAY_CAMPING
+    HOST_SATURDAY_HOUSING <- SATURDAY_HOUSING_COST - GUEST_SATURDAY_HOUSING
+    HOST_SATURDAY_CAMPING <- SATURDAY_CAMPING_GROUNDS - GUEST_SATURDAY_CAMPING
+    HOST_FRIDAY_MEALS <- 0
+    HOST_SATURDAY_MEALS <- 0
+    HOST_SUNDAY_MEALS <- 0
+  }
+  
+  # First check which stay columns exist in the dataset
+  possible_friday_cols <- c("friday_ifc_stay_1", "ifc_stay_1", "friday_ifc_stay")
+  possible_saturday_cols <- c("saturday_ifc_stay_1", "saturday_ifc_stay", "ifc_stay_1")
+  possible_sunday_cols <- c("sunday_ifc_stay_1", "sunday_ifc_stay")
+  possible_camping_cols <- c("lodgingcamping_weekend", "lodgingcamping_sat_only")
+  
+  # Process IFC stay data
+  accommodation_summary <- guests %>%
+    mutate(
+      # Check for "Yes" in ANY of the Friday stay columns that exist
+      is_staying_friday = rowSums(across(any_of(possible_friday_cols), 
+                                         ~ . == "Yes", 
+                                         .names = "col_{.col}"), 
+                                  na.rm = TRUE) > 0,
+      
+      # Check for "Yes" in ANY of the Saturday stay columns that exist
+      is_staying_saturday = rowSums(across(any_of(possible_saturday_cols), 
+                                           ~ . == "Yes", 
+                                           .names = "col_{.col}"),
+                                    na.rm = TRUE) > 0,
+      
+      # Check for "Yes" in ANY of the Sunday stay columns that exist
+      is_staying_sunday = rowSums(across(any_of(possible_sunday_cols), 
+                                         ~ . == "Yes", 
+                                         .names = "col_{.col}"),
+                                  na.rm = TRUE) > 0,
+      
+      # Check for "Camping" in ANY of the camping columns that exist
+      is_camping = rowSums(across(any_of(possible_camping_cols),
+                                  ~ . == "Camping",
+                                  .names = "col_{.col}"),
+                           na.rm = TRUE) > 0
+    )
+  
+  # Add age categories
+  accommodation_summary <- assign_age_categories(accommodation_summary, age_data_path)
+  
+  # Now calculate costs based on accommodation type, nights, and age category
+  accommodation_summary <- accommodation_summary %>%
+    mutate(
+      # IFC COSTS (what IFC charges the hosts)
+      
+      # Friday lodging cost
+      friday_lodging_cost = case_when(
+        is_staying_friday & !is_camping & age_category == "Adults 21+ Room" ~ FRIDAY_HOUSING_COST,
+        is_staying_friday & is_camping & age_category == "Adults 21+ Camping" ~ FRIDAY_CAMPING_GROUNDS,
+        is_staying_friday & age_category == "Guests 12-21 Room" ~ FRIDAY_HOUSING_COST,
+        is_staying_friday & age_category == "Children 5-12 Room" ~ FRIDAY_HOUSING_COST * 0.5, # 50% for children
+        is_staying_friday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Friday meals cost
+      friday_meals_cost = case_when(
+        is_staying_friday & age_category == "Adults 21+ Room" ~ FRIDAY_MEALS_COST,
+        is_staying_friday & age_category == "Adults 21+ Camping" ~ FRIDAY_MEALS_COST,
+        is_staying_friday & age_category == "Guests 12-21 Room" ~ FRIDAY_MEALS_COST,
+        is_staying_friday & age_category == "Children 5-12 Room" ~ FRIDAY_MEALS_COST * 0.5, # 50% for children
+        is_staying_friday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Saturday lodging cost
+      saturday_lodging_cost = case_when(
+        is_staying_saturday & !is_camping & age_category == "Adults 21+ Room" ~ SATURDAY_HOUSING_COST,
+        is_staying_saturday & is_camping & age_category == "Adults 21+ Camping" ~ SATURDAY_CAMPING_GROUNDS,
+        is_staying_saturday & age_category == "Guests 12-21 Room" ~ SATURDAY_HOUSING_COST,
+        is_staying_saturday & age_category == "Children 5-12 Room" ~ SATURDAY_HOUSING_COST * 0.5, # 50% for children
+        is_staying_saturday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Saturday meals cost
+      saturday_meals_cost = case_when(
+        is_staying_saturday & age_category == "Adults 21+ Room" ~ SATURDAY_MEALS_COST,
+        is_staying_saturday & age_category == "Adults 21+ Camping" ~ SATURDAY_MEALS_COST,
+        is_staying_saturday & age_category == "Guests 12-21 Room" ~ SATURDAY_MEALS_COST,
+        is_staying_saturday & age_category == "Children 5-12 Room" ~ SATURDAY_MEALS_COST * 0.5, # 50% for children
+        is_staying_saturday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Sunday meals cost
+      sunday_cost = case_when(
+        is_staying_sunday & age_category == "Adults 21+ Room" ~ SUNDAY_MEALS_COST,
+        is_staying_sunday & age_category == "Adults 21+ Camping" ~ SUNDAY_MEALS_COST,
+        is_staying_sunday & age_category == "Guests 12-21 Room" ~ SUNDAY_MEALS_COST,
+        is_staying_sunday & age_category == "Children 5-12 Room" ~ SUNDAY_MEALS_COST * 0.5, # 50% for children
+        is_staying_sunday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # GUEST CHARGES (what guests pay)
+      
+      # Friday guest charges
+      friday_guest_lodging_charge = case_when(
+        is_staying_friday & !is_camping & age_category == "Adults 21+ Room" ~ GUEST_FRIDAY_HOUSING,
+        is_staying_friday & is_camping & age_category == "Adults 21+ Camping" ~ GUEST_FRIDAY_CAMPING,
+        is_staying_friday & age_category == "Guests 12-21 Room" ~ GUEST_FRIDAY_HOUSING,
+        is_staying_friday & age_category == "Children 5-12 Room" ~ GUEST_FRIDAY_HOUSING * 0.5, # 50% for children
+        is_staying_friday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      friday_guest_meals_charge = case_when(
+        is_staying_friday & age_category == "Adults 21+ Room" ~ GUEST_FRIDAY_MEALS,
+        is_staying_friday & age_category == "Adults 21+ Camping" ~ GUEST_FRIDAY_MEALS,
+        is_staying_friday & age_category == "Guests 12-21 Room" ~ GUEST_FRIDAY_MEALS,
+        is_staying_friday & age_category == "Children 5-12 Room" ~ GUEST_FRIDAY_MEALS * 0.5, # 50% for children
+        is_staying_friday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Saturday guest charges
+      saturday_guest_lodging_charge = case_when(
+        is_staying_saturday & !is_camping & age_category == "Adults 21+ Room" ~ GUEST_SATURDAY_HOUSING,
+        is_staying_saturday & is_camping & age_category == "Adults 21+ Camping" ~ GUEST_SATURDAY_CAMPING,
+        is_staying_saturday & age_category == "Guests 12-21 Room" ~ GUEST_SATURDAY_HOUSING,
+        is_staying_saturday & age_category == "Children 5-12 Room" ~ GUEST_SATURDAY_HOUSING * 0.5, # 50% for children
+        is_staying_saturday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      saturday_guest_meals_charge = case_when(
+        is_staying_saturday & age_category == "Adults 21+ Room" ~ GUEST_SATURDAY_MEALS,
+        is_staying_saturday & age_category == "Adults 21+ Camping" ~ GUEST_SATURDAY_MEALS,
+        is_staying_saturday & age_category == "Guests 12-21 Room" ~ GUEST_SATURDAY_MEALS,
+        is_staying_saturday & age_category == "Children 5-12 Room" ~ GUEST_SATURDAY_MEALS * 0.5, # 50% for children
+        is_staying_saturday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Sunday guest charges
+      sunday_guest_charge = case_when(
+        is_staying_sunday & age_category == "Adults 21+ Room" ~ GUEST_SUNDAY_MEALS,
+        is_staying_sunday & age_category == "Adults 21+ Camping" ~ GUEST_SUNDAY_MEALS,
+        is_staying_sunday & age_category == "Guests 12-21 Room" ~ GUEST_SUNDAY_MEALS,
+        is_staying_sunday & age_category == "Children 5-12 Room" ~ GUEST_SUNDAY_MEALS * 0.5, # 50% for children
+        is_staying_sunday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # HOST CHARGES (what hosts pay)
+      
+      # Friday host charges
+      friday_host_lodging_charge = case_when(
+        is_staying_friday & !is_camping & age_category == "Adults 21+ Room" ~ HOST_FRIDAY_HOUSING,
+        is_staying_friday & is_camping & age_category == "Adults 21+ Camping" ~ HOST_FRIDAY_CAMPING,
+        is_staying_friday & age_category == "Guests 12-21 Room" ~ HOST_FRIDAY_HOUSING,
+        is_staying_friday & age_category == "Children 5-12 Room" ~ (FRIDAY_HOUSING_COST * 0.5) - (GUEST_FRIDAY_HOUSING * 0.5), # 50% for children
+        is_staying_friday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      friday_host_meals_charge = case_when(
+        is_staying_friday & age_category == "Adults 21+ Room" ~ HOST_FRIDAY_MEALS,
+        is_staying_friday & age_category == "Adults 21+ Camping" ~ HOST_FRIDAY_MEALS,
+        is_staying_friday & age_category == "Guests 12-21 Room" ~ HOST_FRIDAY_MEALS,
+        is_staying_friday & age_category == "Children 5-12 Room" ~ (FRIDAY_MEALS_COST * 0.5) - (GUEST_FRIDAY_MEALS * 0.5), # 50% for children
+        is_staying_friday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Saturday host charges
+      saturday_host_lodging_charge = case_when(
+        is_staying_saturday & !is_camping & age_category == "Adults 21+ Room" ~ HOST_SATURDAY_HOUSING,
+        is_staying_saturday & is_camping & age_category == "Adults 21+ Camping" ~ HOST_SATURDAY_CAMPING,
+        is_staying_saturday & age_category == "Guests 12-21 Room" ~ HOST_SATURDAY_HOUSING,
+        is_staying_saturday & age_category == "Children 5-12 Room" ~ (SATURDAY_HOUSING_COST * 0.5) - (GUEST_SATURDAY_HOUSING * 0.5), # 50% for children
+        is_staying_saturday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      saturday_host_meals_charge = case_when(
+        is_staying_saturday & age_category == "Adults 21+ Room" ~ HOST_SATURDAY_MEALS,
+        is_staying_saturday & age_category == "Adults 21+ Camping" ~ HOST_SATURDAY_MEALS,
+        is_staying_saturday & age_category == "Guests 12-21 Room" ~ HOST_SATURDAY_MEALS,
+        is_staying_saturday & age_category == "Children 5-12 Room" ~ (SATURDAY_MEALS_COST * 0.5) - (GUEST_SATURDAY_MEALS * 0.5), # 50% for children
+        is_staying_saturday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Sunday host charges
+      sunday_host_charge = case_when(
+        is_staying_sunday & age_category == "Adults 21+ Room" ~ HOST_SUNDAY_MEALS,
+        is_staying_sunday & age_category == "Adults 21+ Camping" ~ HOST_SUNDAY_MEALS,
+        is_staying_sunday & age_category == "Guests 12-21 Room" ~ HOST_SUNDAY_MEALS,
+        is_staying_sunday & age_category == "Children 5-12 Room" ~ (SUNDAY_MEALS_COST * 0.5) - (GUEST_SUNDAY_MEALS * 0.5), # 50% for children
+        is_staying_sunday & age_category == "Children <5 Room" ~ 0, # Free for young children
+        TRUE ~ 0
+      ),
+      
+      # Calculate total costs and charges
+      
+      # Daily costs (IFC charges)
+      friday_cost = friday_lodging_cost + friday_meals_cost,
+      saturday_cost = saturday_lodging_cost + saturday_meals_cost,
+      
+      # Total guest charges (what guests pay)
+      friday_guest_charge = friday_guest_lodging_charge + friday_guest_meals_charge,
+      saturday_guest_charge = saturday_guest_lodging_charge + saturday_guest_meals_charge,
+      total_guest_charge = friday_guest_charge + saturday_guest_charge + sunday_guest_charge,
+      
+      # Total host charges (what hosts pay)
+      friday_host_charge = friday_host_lodging_charge + friday_host_meals_charge,
+      saturday_host_charge = saturday_host_lodging_charge + saturday_host_meals_charge,
+      total_host_charge = friday_host_charge + saturday_host_charge + sunday_host_charge,
+      
+      # Category totals
+      total_lodging_cost = friday_lodging_cost + saturday_lodging_cost,
+      total_meals_cost = friday_meals_cost + saturday_meals_cost + sunday_cost,
+      
+      # Total cost (IFC charge)
+      total_cost = friday_cost + saturday_cost + sunday_cost
+    )
+  
+  # Create summary of accommodation counts and costs
+  accommodation_counts <- accommodation_summary %>%
+    summarize(
+      total_guests = n(),
+      friday_count = sum(is_staying_friday, na.rm = TRUE),
+      saturday_count = sum(is_staying_saturday, na.rm = TRUE),
+      sunday_count = sum(is_staying_sunday, na.rm = TRUE),
+      camping_count = sum(is_camping, na.rm = TRUE),
+      standard_lodging_count = sum((is_staying_friday | is_staying_saturday) & !is_camping, na.rm = TRUE),
+      
+      # Cost totals
+      total_friday_cost = sum(friday_cost, na.rm = TRUE),
+      total_saturday_cost = sum(saturday_cost, na.rm = TRUE),
+      total_sunday_cost = sum(sunday_cost, na.rm = TRUE),
+      grand_total_cost = sum(total_cost, na.rm = TRUE),
+      
+      # Guest charge totals
+      total_friday_guest_charge = sum(friday_guest_charge, na.rm = TRUE),
+      total_saturday_guest_charge = sum(saturday_guest_charge, na.rm = TRUE),
+      total_sunday_guest_charge = sum(sunday_guest_charge, na.rm = TRUE),
+      grand_total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
+      
+      # Host charge totals
+      total_friday_host_charge = sum(friday_host_charge, na.rm = TRUE),
+      total_saturday_host_charge = sum(saturday_host_charge, na.rm = TRUE),
+      total_sunday_host_charge = sum(sunday_host_charge, na.rm = TRUE),
+      grand_total_host_charge = sum(total_host_charge, na.rm = TRUE)
+    )
+  
+  # Calculate age category counts
+  age_category_counts <- count_by_age_category(accommodation_summary)
+  
+  # Return all results
+  return(list(
+    guest_costs = accommodation_summary,
+    summary = accommodation_counts,
+    age_category_summary = age_category_counts
+  ))
+}
+
+# Function to create a concise summary for quick insights
+create_concise_summary <- function(results) {
+  # Get key metrics
+  rsvp_counts <- results$guests %>%
+    summarize(
+      total_invited = n(),
+      wedding_attending = sum(wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
+      wedding_declining = sum(wedding_rsvp == "Regretfully Decline", na.rm = TRUE),
+      wedding_no_response = sum(is.na(wedding_rsvp) | wedding_rsvp == ""),
+      friday_attending = sum(fridayshabbat_rsvp == "Joyfully Accept", na.rm = TRUE)
+    )
+  
+  # Accommodation summary
+  acc_summary <- results$accommodation_summary
+  
+  # Calculate total by category
+  total_lodging <- acc_summary$total_friday_cost + acc_summary$total_saturday_cost
+  
+  total_meals <- acc_summary$total_sunday_cost
+  
+  # Create summary data frame
+  summary_df <- data.frame(
+    Category = c(
+      "Total Invited Guests", "RSVP'd Yes", "RSVP'd No", "No Response",
+      "Attending Friday", "Staying Friday Night", "Staying Saturday Night", "Staying Sunday Night",
+      "Using Standard Lodging", "Camping", 
+      "Total Lodging Cost", "Total Meal Cost", "Total IFC Cost",
+      "Total Guest Charge", "Total Host Charge"
+    ),
+    Count = c(
+      rsvp_counts$total_invited, rsvp_counts$wedding_attending, 
+      rsvp_counts$wedding_declining, rsvp_counts$wedding_no_response,
+      rsvp_counts$friday_attending, 
+      acc_summary$friday_count, acc_summary$saturday_count, acc_summary$sunday_count,
+      acc_summary$standard_lodging_count, acc_summary$camping_count,
+      paste0("$", format(total_lodging, big.mark = ",")), 
+      paste0("$", format(total_meals, big.mark = ",")),
+      paste0("$", format(acc_summary$grand_total_cost, big.mark = ",")),
+      paste0("$", format(acc_summary$grand_total_guest_charge, big.mark = ",")),
+      paste0("$", format(acc_summary$grand_total_host_charge, big.mark = ","))
+    )
+  )
+  
+  return(summary_df)
+}
+
+# Function to validate guest data for quality checks
+validate_guest_data <- function(guests) {
+  issues <- list()
+  
+  # Check for missing required fields
+  missing_name <- is.na(guests$first_name) | guests$first_name == ""
+  if (any(missing_name)) {
+    issues$missing_names <- which(missing_name)
+  }
+  
+  # Check for email format issues
+  email_cols <- grep("email", names(guests), ignore.case = TRUE, value = TRUE)
+  if (length(email_cols) > 0) {
+    email_col <- email_cols[1]
+    email_pattern <- "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+    invalid_emails <- !is.na(guests[[email_col]]) & 
+      guests[[email_col]] != "" & 
+      !grepl(email_pattern, guests[[email_col]])
+    if (any(invalid_emails)) {
+      issues$invalid_emails <- which(invalid_emails)
+    }
+  }
+  
+  # Check for response inconsistencies
+  if ("wedding_rsvp" %in% names(guests) && "fridayshabbat_rsvp" %in% names(guests)) {
+    # Attending Friday but not wedding
+    inconsistent_friday <- guests$fridayshabbat_rsvp == "Joyfully Accept" & 
+      guests$wedding_rsvp == "Regretfully Decline" & 
+      !is.na(guests$fridayshabbat_rsvp) & 
+      !is.na(guests$wedding_rsvp)
+    if (any(inconsistent_friday)) {
+      issues$inconsistent_friday <- which(inconsistent_friday)
+    }
+  }
+  
+  return(issues)
+}
+
+# Improved function to count meals for all guests
+# Improved function to count meals for all guests - with fixed variable definitions
+count_meals <- function(guests) {
+  # Get list of stay columns to check
+  possible_friday_cols <- c("friday_ifc_stay_1", "ifc_stay_1", "friday_ifc_stay")
+  possible_saturday_cols <- c("saturday_ifc_stay_1", "saturday_ifc_stay", "ifc_stay_1")
+  possible_sunday_cols <- c("sunday_ifc_stay_1", "sunday_ifc_stay")
+  
+  # IMPORTANT FIX: First define all attendance variables before using them in calculations
+  all_guests_with_attendance <- guests %>%
+    mutate(
+      # General attendance
+      attending_wedding = wedding_rsvp == "Joyfully Accept",
+      attending_friday = fridayshabbat_rsvp == "Joyfully Accept",
+      
+      # Saturday meal attendance (for off-site guests) - look for specific responses
+      attending_saturday_lunch_only = saturday_offsite_rsvp == "Yes, I will join for lunch only",
+      attending_saturday_dinner_only = saturday_offsite_rsvp == "Yes, I will join for dinner only",
+      attending_saturday_both_meals = saturday_offsite_rsvp == "Yes, I will join for lunch and dinner"
+    )
+  
+  # Get age categories if available
+  has_age_categories <- "age_category" %in% names(all_guests_with_attendance)
+  
+  if (has_age_categories) {
+    meal_summary <- all_guests_with_attendance %>%
+      group_by(age_category) %>%
+      summarize(
+        # Meals for on-site guests - use is_staying_friday from the guests dataframe
+        friday_dinner_onsite = sum(is_staying_friday, na.rm = TRUE),
+        saturday_breakfast_onsite = sum(is_staying_friday, na.rm = TRUE),
+        saturday_lunch_onsite = sum(is_staying_saturday, na.rm = TRUE),
+        saturday_dinner_onsite = sum(is_staying_saturday, na.rm = TRUE),
+        sunday_breakfast_onsite = sum(is_staying_saturday, na.rm = TRUE),
+        sunday_dinner_onsite = sum(is_staying_sunday, na.rm = TRUE),
+        monday_breakfast_onsite = sum(is_staying_sunday, na.rm = TRUE),
+        
+        # Meals for off-site guests - now use the attending_friday variable we defined above
+        friday_dinner_offsite = sum(attending_friday & !is_staying_friday, na.rm = TRUE),
+        saturday_lunch_offsite = sum(attending_saturday_lunch_only | attending_saturday_both_meals, na.rm = TRUE),
+        saturday_dinner_offsite = sum(attending_saturday_dinner_only | attending_saturday_both_meals, na.rm = TRUE),
+        
+        # Wedding reception meal (all attending)
+        sunday_lunch_total = sum(attending_wedding, na.rm = TRUE)
+      )
+    
+    # Calculate totals across all age categories
+    meal_counts <- meal_summary %>%
+      ungroup() %>%
+      summarize(
+        # Meals for on-site guests
+        friday_dinner_onsite = sum(friday_dinner_onsite, na.rm = TRUE),
+        saturday_breakfast_onsite = sum(saturday_breakfast_onsite, na.rm = TRUE),
+        saturday_lunch_onsite = sum(saturday_lunch_onsite, na.rm = TRUE),
+        saturday_dinner_onsite = sum(saturday_dinner_onsite, na.rm = TRUE),
+        sunday_breakfast_onsite = sum(sunday_breakfast_onsite, na.rm = TRUE),
+        sunday_dinner_onsite = sum(sunday_dinner_onsite, na.rm = TRUE),
+        monday_breakfast_onsite = sum(monday_breakfast_onsite, na.rm = TRUE),
+        
+        # Meals for off-site guests
+        friday_dinner_offsite = sum(friday_dinner_offsite, na.rm = TRUE),
+        saturday_lunch_offsite = sum(saturday_lunch_offsite, na.rm = TRUE),
+        saturday_dinner_offsite = sum(saturday_dinner_offsite, na.rm = TRUE),
+        
+        # Wedding reception meal (all attending)
+        sunday_lunch_total = sum(sunday_lunch_total, na.rm = TRUE),
+        
+        # Total counts (for planning)
+        total_friday_dinner = sum(friday_dinner_onsite + friday_dinner_offsite, na.rm = TRUE),
+        total_saturday_breakfast = sum(saturday_breakfast_onsite, na.rm = TRUE),
+        total_saturday_lunch = sum(saturday_lunch_onsite + saturday_lunch_offsite, na.rm = TRUE),
+        total_saturday_dinner = sum(saturday_dinner_onsite + saturday_dinner_offsite, na.rm = TRUE),
+        total_sunday_breakfast = sum(sunday_breakfast_onsite, na.rm = TRUE),
+        total_sunday_lunch = sum(sunday_lunch_total, na.rm = TRUE),
+        total_sunday_dinner = sum(sunday_dinner_onsite, na.rm = TRUE),
+        total_monday_breakfast = sum(monday_breakfast_onsite, na.rm = TRUE)
+      )
+    
+    # Add the meal_summary to the result
+    meal_counts$by_age_category <- meal_summary
+  } else {
+    # Without age categories
+    meal_counts <- all_guests_with_attendance %>%
+      summarize(
+        # Meals for on-site guests
+        friday_dinner_onsite = sum(is_staying_friday, na.rm = TRUE),
+        saturday_breakfast_onsite = sum(is_staying_friday, na.rm = TRUE),
+        saturday_lunch_onsite = sum(is_staying_saturday, na.rm = TRUE),
+        saturday_dinner_onsite = sum(is_staying_saturday, na.rm = TRUE),
+        sunday_breakfast_onsite = sum(is_staying_saturday, na.rm = TRUE),
+        sunday_dinner_onsite = sum(is_staying_sunday, na.rm = TRUE),
+        monday_breakfast_onsite = sum(is_staying_sunday, na.rm = TRUE),
+        
+        # Meals for off-site guests - using the attending_friday variable we defined above
+        friday_dinner_offsite = sum(attending_friday & !is_staying_friday, na.rm = TRUE),
+        saturday_lunch_offsite = sum(attending_saturday_lunch_only | attending_saturday_both_meals, na.rm = TRUE),
+        saturday_dinner_offsite = sum(attending_saturday_dinner_only | attending_saturday_both_meals, na.rm = TRUE),
+        
+        # Wedding reception meal (all attending)
+        sunday_lunch_total = sum(attending_wedding, na.rm = TRUE),
+        
+        # Total counts (for planning)
+        total_friday_dinner = sum(sum(is_staying_friday, na.rm = TRUE) + 
+                                    sum(attending_friday & !is_staying_friday, na.rm = TRUE), na.rm = TRUE),
+        total_saturday_breakfast = sum(is_staying_friday, na.rm = TRUE),
+        total_saturday_lunch = sum(sum(is_staying_saturday, na.rm = TRUE) + 
+                                     sum(attending_saturday_lunch_only | attending_saturday_both_meals, na.rm = TRUE), 
+                                   na.rm = TRUE),
+        total_saturday_dinner = sum(sum(is_staying_saturday, na.rm = TRUE) + 
+                                      sum(attending_saturday_dinner_only | attending_saturday_both_meals, na.rm = TRUE), 
+                                    na.rm = TRUE),
+        total_sunday_breakfast = sum(is_staying_saturday, na.rm = TRUE),
+        total_sunday_lunch = sum(attending_wedding, na.rm = TRUE),
+        total_sunday_dinner = sum(is_staying_sunday, na.rm = TRUE),
+        total_monday_breakfast = sum(is_staying_sunday, na.rm = TRUE)
+      )
+  }
+  
+  # Add dietary breakdowns for each meal
+  veg_count <- sum(all_guests_with_attendance$meal_preferences == "No meat" | 
+                     all_guests_with_attendance$meal_preferences == "Opt-in for fish only", na.rm = TRUE)
+  
+  meal_counts$friday_dinner_vegetarian <- veg_count
+  meal_counts$saturday_breakfast_vegetarian <- veg_count
+  meal_counts$saturday_lunch_vegetarian <- veg_count
+  meal_counts$saturday_dinner_vegetarian <- veg_count
+  meal_counts$sunday_breakfast_vegetarian <- veg_count
+  meal_counts$sunday_lunch_vegetarian <- veg_count
+  meal_counts$sunday_dinner_vegetarian <- veg_count
+  meal_counts$monday_breakfast_vegetarian <- veg_count
+  
+  # Add special diet counts
+  special_diets <- sum(!is.na(all_guests_with_attendance$dietary_restrictions) & 
+                         all_guests_with_attendance$dietary_restrictions != "", na.rm = TRUE)
+  
+  meal_counts$friday_dinner_special_diet <- special_diets
+  meal_counts$saturday_breakfast_special_diet <- special_diets
+  meal_counts$saturday_lunch_special_diet <- special_diets
+  meal_counts$saturday_dinner_special_diet <- special_diets
+  meal_counts$sunday_breakfast_special_diet <- special_diets
+  meal_counts$sunday_lunch_special_diet <- special_diets
+  meal_counts$sunday_dinner_special_diet <- special_diets
+  meal_counts$monday_breakfast_special_diet <- special_diets
+  
+  return(meal_counts)
+}
+
+# Function to count meals by age category
+# Function to count meals by age category - with fixed variable definitions
+count_meals_by_age <- function(guests) {
+  # Get list of stay columns to check
+  possible_friday_cols <- c("friday_ifc_stay_1", "ifc_stay_1", "friday_ifc_stay")
+  possible_saturday_cols <- c("saturday_ifc_stay_1", "saturday_ifc_stay", "ifc_stay_1")
+  possible_sunday_cols <- c("sunday_ifc_stay_1", "sunday_ifc_stay")
+  
+  # First, ensure all guests have the is_staying variables defined
+  if (!("is_staying_friday" %in% names(guests))) {
+    guests <- guests %>%
+      mutate(
+        is_staying_friday = rowSums(across(any_of(possible_friday_cols), ~ . == "Yes"), na.rm = TRUE) > 0,
+        is_staying_saturday = rowSums(across(any_of(possible_saturday_cols), ~ . == "Yes"), na.rm = TRUE) > 0,
+        is_staying_sunday = rowSums(across(any_of(possible_sunday_cols), ~ . == "Yes"), na.rm = TRUE) > 0
+      )
+  }
+  
+  # Next, add the attendance variables
+  guests_with_stays <- guests %>%
+    mutate(
+      # General attendance
+      attending_wedding = wedding_rsvp == "Joyfully Accept",
+      attending_friday = fridayshabbat_rsvp == "Joyfully Accept",
+      
+      # Saturday meal attendance (for off-site guests)
+      attending_saturday_lunch_only = saturday_offsite_rsvp == "Yes, I will join for lunch only",
+      attending_saturday_dinner_only = saturday_offsite_rsvp == "Yes, I will join for dinner only",
+      attending_saturday_both_meals = saturday_offsite_rsvp == "Yes, I will join for lunch and dinner"
+    )
+  
+  # Function to count guests for a specific meal and age category
+  count_by_age <- function(data, meal_condition) {
+    data %>%
+      filter(!!rlang::parse_expr(meal_condition)) %>%
+      group_by(age_category) %>%
+      summarize(
+        count = n(),
+        veg_count = sum(meal_preferences == "No meat" | 
+                          meal_preferences == "Opt-in for fish only", na.rm = TRUE),
+        meat_fish_count = sum(meal_preferences == "Opt-in for chicken and fish" | 
+                                meal_preferences == "Opt-in for chicken only", na.rm = TRUE),
+        special_diet_count = sum(!is.na(dietary_restrictions) & 
+                                   dietary_restrictions != "", na.rm = TRUE),
+        .groups = 'drop'
+      )
+  }
+  
+  # Create counts for each meal by age category
+  friday_dinner <- count_by_age(guests_with_stays, "is_staying_friday | (attending_friday & !is_staying_friday)")
+  saturday_breakfast <- count_by_age(guests_with_stays, "is_staying_friday")
+  saturday_lunch <- count_by_age(guests_with_stays, "is_staying_saturday | attending_saturday_lunch_only | attending_saturday_both_meals")
+  saturday_dinner <- count_by_age(guests_with_stays, "is_staying_saturday | attending_saturday_dinner_only | attending_saturday_both_meals")
+  sunday_breakfast <- count_by_age(guests_with_stays, "is_staying_saturday")
+  sunday_lunch <- count_by_age(guests_with_stays, "attending_wedding")
+  sunday_dinner <- count_by_age(guests_with_stays, "is_staying_sunday")
+  monday_breakfast <- count_by_age(guests_with_stays, "is_staying_sunday")
+  
+  # Create a comprehensive meal planning table
+  all_meals <- bind_rows(
+    mutate(friday_dinner, meal = "Friday Dinner"),
+    mutate(saturday_breakfast, meal = "Saturday Breakfast"),
+    mutate(saturday_lunch, meal = "Saturday Lunch"),
+    mutate(saturday_dinner, meal = "Saturday Dinner"),
+    mutate(sunday_breakfast, meal = "Sunday Breakfast"),
+    mutate(sunday_lunch, meal = "Sunday Lunch (Wedding)"),
+    mutate(sunday_dinner, meal = "Sunday Dinner"),
+    mutate(monday_breakfast, meal = "Monday Breakfast")
+  ) %>%
+    select(meal, age_category, count, veg_count, meat_fish_count, special_diet_count)
+  
+  # Create a list of guests with dietary restrictions for each meal
+  special_diet_guests <- guests_with_stays %>%
+    filter(!is.na(dietary_restrictions) & dietary_restrictions != "") %>%
+    select(
+      first_name,
+      last_name,
+      age_category,
+      meal_preferences,
+      dietary_restrictions
+    )
+  
+  # Return the meal counts by age and the comprehensive meal plan
+  return(list(
+    friday_dinner = friday_dinner,
+    saturday_breakfast = saturday_breakfast,
+    saturday_lunch = saturday_lunch,
+    saturday_dinner = saturday_dinner,
+    sunday_breakfast = sunday_breakfast,
+    sunday_lunch = sunday_lunch,
+    sunday_dinner = sunday_dinner,
+    monday_breakfast = monday_breakfast,
+    all_meals = all_meals,
+    special_diet_guests = special_diet_guests
+  ))
+}
+
+# Function to generate a schedule/roster for IFC
+generate_ifc_schedule <- function(guests_with_costs) {
+  # Create a comprehensive schedule of all stays and meals
+  ifc_schedule <- guests_with_costs %>%
+    filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+    mutate(
+      # Add meal attendance flags
+      friday_dinner = is_staying_friday,
+      saturday_breakfast = is_staying_friday,
+      saturday_lunch = is_staying_saturday,
+      saturday_dinner = is_staying_saturday,
+      sunday_breakfast = is_staying_saturday,
+      sunday_lunch = wedding_rsvp == "Joyfully Accept",
+      sunday_dinner = is_staying_sunday,
+      monday_breakfast = is_staying_sunday
+    ) %>%
+    select(
+      first_name,
+      last_name,
+      party,
+      age_category,
+      is_staying_friday,
+      is_staying_saturday,
+      is_staying_sunday,
+      is_camping,
+      friday_dinner,
+      saturday_breakfast,
+      saturday_lunch,
+      saturday_dinner,
+      sunday_breakfast,
+      sunday_lunch,
+      sunday_dinner,
+      monday_breakfast,
+      meal_preferences,
+      dietary_restrictions,
+      # Add financial breakdown
+      total_cost,
+      total_guest_charge,
+      total_host_charge,
+      # Add detailed costs
+      friday_cost,
+      saturday_cost, 
+      sunday_cost,
+      friday_guest_charge,
+      saturday_guest_charge,
+      sunday_guest_charge,
+      friday_host_charge,
+      saturday_host_charge,
+      sunday_host_charge
+    )
+  
+  return(ifc_schedule)
+}
+
+# Main function to generate all reports
+generate_wedding_reports <- function(file_path, age_data_path = "Wedding Budget Invite List.csv", 
+                                     rates_path = "charge_rates.csv") {
+  # Read guest list
+  guests <- read_guest_list(file_path)
+  
+  # Generate party summary
+  party_summary <- generate_party_summary(guests)
+  
+  # Calculate accommodation costs (with age categories and financial breakdown)
+  accommodation_results <- calculate_accommodation_costs(guests, age_data_path, rates_path)
+  
+  # Count meals for all guests with improved function
+  meal_counts <- count_meals(accommodation_results$guest_costs)
+  
+  # Count meals by age category
+  meal_counts_by_age <- count_meals_by_age(accommodation_results$guest_costs)
+  
+  # Generate IFC schedule/roster
+  ifc_schedule <- generate_ifc_schedule(accommodation_results$guest_costs)
+  
+  # Run data validation
+  data_issues <- validate_guest_data(guests)
+  
+  # Print summary reports
+  cat("\n=== WEDDING RSVP SUMMARY ===\n")
+  print(party_summary)
+  
+  cat("\n=== ACCOMMODATION SUMMARY ===\n")
+  print(accommodation_results$summary)
+  
+  cat("\n=== AGE CATEGORY SUMMARY ===\n")
+  print(accommodation_results$age_category_summary)
+  
+  cat("\n=== MEAL COUNTS (Detailed) ===\n")
+  print(meal_counts)
+  
+  # Print any data quality issues
+  if (length(data_issues) > 0) {
+    cat("\n=== DATA QUALITY ISSUES ===\n")
+    print(data_issues)
+  }
+  
+  # Return all results as a list
+  return(list(
+    guests = guests,
+    party_summary = party_summary,
+    guest_costs = accommodation_results$guest_costs,
+    accommodation_summary = accommodation_results$summary,
+    age_category_summary = accommodation_results$age_category_summary,
+    meal_counts = meal_counts,
+    meal_counts_by_age = meal_counts_by_age,
+    ifc_schedule = ifc_schedule,
+    data_issues = data_issues
+  ))
+}
+
+# Additional function to export results to CSV files
+export_reports <- function(results, output_dir = ".") {
+  # SIMPLIFIED: Force directory creation
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  cat("Ensuring report directory exists:", output_dir, "\n")
+  
+  # Export party summary
+  write_csv(results$party_summary, file.path(output_dir, "party_summary.csv"))
+  
+  # Export guest costs
+  write_csv(results$guest_costs, file.path(output_dir, "guest_accommodation_costs.csv"))
+  
+  # Export accommodation summary as a simple CSV
+  accommodation_df <- as.data.frame(t(as.matrix(results$accommodation_summary)))
+  accommodation_df$metric <- rownames(accommodation_df)
+  accommodation_df <- accommodation_df[, c(ncol(accommodation_df), 1:(ncol(accommodation_df)-1))]
+  names(accommodation_df)[1] <- "metric"
+  write_csv(accommodation_df, file.path(output_dir, "accommodation_summary.csv"))
+  
+  # Export age category summary
+  write_csv(results$age_category_summary, file.path(output_dir, "age_category_summary.csv"))
+  
+  # Export meal counts as a simple CSV
+  meal_df <- as.data.frame(t(as.matrix(results$meal_counts)))
+  meal_df$meal <- rownames(meal_df)
+  meal_df <- meal_df[, c(ncol(meal_df), 1:(ncol(meal_df)-1))]
+  names(meal_df)[1] <- "meal"
+  write_csv(meal_df, file.path(output_dir, "meal_counts.csv"))
+  
+  # Export meal counts by age category
+  if (!is.null(results$meal_counts_by_age)) {
+    # Create a directory for age-specific reports
+    age_dir <- file.path(output_dir, "age_reports")
+    dir.create(age_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    # Export comprehensive meal planning table
+    write_csv(results$meal_counts_by_age$all_meals, 
+              file.path(age_dir, "meal_plan_by_age.csv"))
+    
+    # Export special diet guests
+    write_csv(results$meal_counts_by_age$special_diet_guests, 
+              file.path(age_dir, "special_diet_guests.csv"))
+    
+    # Export each meal's age breakdown
+    for (meal_name in names(results$meal_counts_by_age)) {
+      if (meal_name != "all_meals" && meal_name != "special_diet_guests") {
+        write_csv(
+          results$meal_counts_by_age[[meal_name]], 
+          file.path(age_dir, paste0(meal_name, "_by_age.csv"))
+        )
+      }
+    }
+  }
+  
+  # Export IFC schedule/roster
+  write_csv(results$ifc_schedule, file.path(output_dir, "ifc_schedule.csv"))
+  
+  # Generate and export concise summary report
+  concise_summary <- create_concise_summary(results)
+  write_csv(concise_summary, file.path(output_dir, "concise_summary.csv"))
+  
+  # Export age category details for guests staying each night
+  age_by_night <- results$guest_costs %>%
+    group_by(age_category) %>%
+    summarize(
+      friday_count = sum(is_staying_friday, na.rm = TRUE),
+      saturday_count = sum(is_staying_saturday, na.rm = TRUE),
+      sunday_count = sum(is_staying_sunday, na.rm = TRUE),
+      total_guests = n()
+    ) %>%
+    arrange(age_category)
+  
+  write_csv(age_by_night, file.path(output_dir, "age_by_night.csv"))
+  
+  # Export detailed list of guests with age categories
+  age_detail <- results$guest_costs %>%
+    select(
+      first_name,
+      last_name,
+      party,
+      age_category,
+      is_staying_friday,
+      is_staying_saturday,
+      is_staying_sunday,
+      is_camping,
+      meal_preferences,
+      dietary_restrictions,
+      total_cost,
+      total_guest_charge,
+      total_host_charge
+    )
+  
+  write_csv(age_detail, file.path(output_dir, "age_detail.csv"))
+  
+  # Create a summary text file for age categories
+  age_summary_text <- paste0(
+    "AGE CATEGORY SUMMARY\n",
+    "Wedding: Cyrena & Jon - June 20-23, 2025\n",
+    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
+    
+    "== Age Category Counts ==\n\n",
+    paste(capture.output(print(results$age_category_summary)), collapse = "\n"), "\n\n",
+    
+    "== Age Categories by Night ==\n\n",
+    paste(capture.output(print(age_by_night)), collapse = "\n"), "\n\n",
+    
+    "== Financial Summary by Age Category ==\n\n",
+    "Total IFC Cost: $", sum(results$age_category_summary$total_cost), "\n",
+    "Total Guest Charges: $", sum(results$age_category_summary$total_guest_charge), "\n",
+    "Total Host Charges: $", sum(results$age_category_summary$total_host_charge), "\n\n",
+    
+    "== Important Notes ==\n\n",
+    "1. Age Categories:\n",
+    "   - Adults 21+ Room: Adults staying in standard rooms\n",
+    "   - Adults 21+ Camping: Adults staying in camping accommodations\n",
+    "   - Guests 12-21 Room: Teenagers and young adults in standard rooms\n",
+    "   - Children 5-12 Room: School-age children in standard rooms\n",
+    "   - Children <5 Room: Young children and infants in standard rooms\n\n",
+    
+    "2. Age data has been extracted from the Wedding Budget Invite List.\n",
+    "   Guests without matching records were categorized as 'Adults 21+ Room' by default.\n\n",
+    
+    "3. Financial breakdown:\n",
+    "   - IFC Cost: Total amount charged by Isabella Freedman Center\n",
+    "   - Guest Charge: Amount guests pay\n",
+    "   - Host Charge: Amount hosts pay (difference between IFC cost and guest charge)\n\n",
+    
+    "4. Children under 5 stay free; children 5-12 are charged at 50% of adult rates.\n"
+  )
+  
+  writeLines(age_summary_text, file.path(output_dir, "age_summary.txt"))
+  
+  cat("Reports exported to:", output_dir, "\n")
+}
