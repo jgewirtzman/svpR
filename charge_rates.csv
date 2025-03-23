@@ -1,0 +1,20 @@
+Night,Category,IFC Rate,Gratuity,Expected Guest Count,Total IFC Revenue,Listed Standard Guest Rate,Listed Standard Guest Meal Rate,Per Guest Charge,Total Guest Charge,Total Host Charge
+Friday,Adults 21+ Room,225,22.5,61,15097.5,72,36,108,6588,8509.5
+,Guests 12-21 Room,225,22.5,2,495,0,0,0,0,495
+,Children 5-12 Room,175,17.5,2,385,0,0,0,0,385
+,Children <5 Room,0,0,1,0,0,0,0,0,0
+,Adults 21+ Camping,150,15,4,660,36,36,72,288,372
+,,,,,,,,,,
+Saturday,Adults 21+ Room,225,22.5,128,31680,136,36,172,22016,9664
+,Guests 12-21 Room,225,22.5,7,1732.5,0,0,0,0,1732.5
+,Children 5-12 Room,175,17.5,5,962.5,0,0,0,0,962.5
+,Children <5 Room,0,0,2,0,0,0,0,0,0
+,Adults 21+ Camping,150,15,,0,54,36,90,0,0
+,,,,,,,,,,
+Reception Meal,Guests,125,12.5,200,27500,NA,,,0,27500
+,,,,,,,,,,
+Sunday (no meals option),Adults 21+ Room,109,10.9,12,1438.8,18,0,18,216,1222.8
+,Guests 12-21 Room,109,10.9,0,0,0,0,0,0,0
+,Children 5-12 Room,69,6.9,0,0,0,0,0,0,0
+,Children <5 Room,0,0,0,0,0,0,0,0,0
+,Adults 21+ Camping,75,7.5,0,0,0,0,0,0,0

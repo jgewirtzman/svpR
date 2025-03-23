@@ -33,7 +33,7 @@ read_guest_list <- function(file_path) {
 }
 
 # Read in financial rate information
-read_rate_information <- function(file_path = "Housing_Assignment_Sheet  Sheet3.csv") {
+read_rate_information <- function(file_path = "charge_rates.csv") {
   # Check if the file exists
   if (!file.exists(file_path)) {
     warning("Rate information file not found: ", file_path)
@@ -125,7 +125,7 @@ generate_party_summary <- function(guests) {
 }
 
 # Function to assign age categories to guests based on age data
-assign_age_categories <- function(guests, age_data_path = "Wedding Budget  Invite List.csv") {
+assign_age_categories <- function(guests, age_data_path = "Wedding Budget Invite List.csv") {
   # If an age data file is provided, use it
   if (!is.null(age_data_path) && file.exists(age_data_path)) {
     # Read the age data file
@@ -215,8 +215,8 @@ count_by_age_category <- function(guests) {
 }
 
 # Function to calculate accommodation costs with financial breakdown
-calculate_accommodation_costs <- function(guests, age_data_path = "Wedding Budget  Invite List.csv", 
-                                          rates_path = "Housing_Assignment_Sheet  Sheet3.csv") {
+calculate_accommodation_costs <- function(guests, age_data_path = "Wedding Budget Invite List.csv", 
+                                          rates_path = "charge_rates.csv") {
   # Read rate information if available
   rates_data <- read_rate_information(rates_path)
   
@@ -939,8 +939,8 @@ generate_ifc_schedule <- function(guests_with_costs) {
 }
 
 # Main function to generate all reports
-generate_wedding_reports <- function(file_path, age_data_path = "Wedding Budget  Invite List.csv", 
-                                     rates_path = "Housing_Assignment_Sheet  Sheet3.csv") {
+generate_wedding_reports <- function(file_path, age_data_path = "Wedding Budget Invite List.csv", 
+                                     rates_path = "charge_rates.csv") {
   # Read guest list
   guests <- read_guest_list(file_path)
   
