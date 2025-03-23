@@ -10,10 +10,18 @@ library(knitr)
 library(rmarkdown)
 
 # Function to generate a cost summary for each party
+
+# Function to generate a cost summary for each party
 generate_cost_summary <- function(results) {
   # Extract party list and guest costs
   party_summary <- results$party_summary
   guests <- results$guest_costs
+  
+  # Ensure guests have total_guest_charge column
+  if (!"total_guest_charge" %in% names(guests)) {
+    cat("Warning: total_guest_charge column not found in guest data. Adding default values.\n")
+    guests$total_guest_charge <- 0
+  }
   
   # Define cost constants for reference
   costs <- list(
@@ -40,22 +48,30 @@ generate_cost_summary <- function(results) {
       camping = sum(is_camping, na.rm = TRUE),
       standard_lodging = sum((is_staying_friday | is_staying_saturday) & !is_camping, na.rm = TRUE),
       
-      # Cost breakdowns by category
+      # Cost breakdowns by category - with safeguards for missing values
       total_friday_cost = sum(friday_cost, na.rm = TRUE),
       total_saturday_cost = sum(saturday_cost, na.rm = TRUE),
       total_sunday_cost = sum(sunday_cost, na.rm = TRUE),
       
-      # Guest charges
-      total_friday_guest_charge = sum(friday_guest_charge, na.rm = TRUE),
-      total_saturday_guest_charge = sum(saturday_guest_charge, na.rm = TRUE),
-      total_sunday_guest_charge = sum(sunday_guest_charge, na.rm = TRUE),
-      grand_total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
+      # Guest charges - with safeguards for missing values
+      total_friday_guest_charge = if ("friday_guest_charge" %in% names(guests)) 
+        sum(friday_guest_charge, na.rm = TRUE) else 0,
+      total_saturday_guest_charge = if ("saturday_guest_charge" %in% names(guests)) 
+        sum(saturday_guest_charge, na.rm = TRUE) else 0,
+      total_sunday_guest_charge = if ("sunday_guest_charge" %in% names(guests)) 
+        sum(sunday_guest_charge, na.rm = TRUE) else 0,
+      grand_total_guest_charge = if ("total_guest_charge" %in% names(guests)) 
+        sum(total_guest_charge, na.rm = TRUE) else 0,
       
-      # Host charges
-      total_friday_host_charge = sum(friday_host_charge, na.rm = TRUE),
-      total_saturday_host_charge = sum(saturday_host_charge, na.rm = TRUE),
-      total_sunday_host_charge = sum(sunday_host_charge, na.rm = TRUE),
-      grand_total_host_charge = sum(total_host_charge, na.rm = TRUE)
+      # Host charges - with safeguards for missing values
+      total_friday_host_charge = if ("friday_host_charge" %in% names(guests)) 
+        sum(friday_host_charge, na.rm = TRUE) else 0,
+      total_saturday_host_charge = if ("saturday_host_charge" %in% names(guests)) 
+        sum(saturday_host_charge, na.rm = TRUE) else 0,
+      total_sunday_host_charge = if ("sunday_host_charge" %in% names(guests))
+        sum(sunday_host_charge, na.rm = TRUE) else 0,
+      grand_total_host_charge = if ("total_host_charge" %in% names(guests))
+        sum(total_host_charge, na.rm = TRUE) else 0
     ) %>%
     # Join with party_summary to get email and party name
     left_join(party_summary %>% select(party, party_name, party_email, guest_names), by = "party")
@@ -74,7 +90,8 @@ generate_cost_summary <- function(results) {
     summary_text <- paste0(
       "Party: ", party_info$party_name, "\n",
       "Guests: ", party_info$guest_names, "\n",
-      "Email: ", party_info$party_email, "\n",
+      "Email: ", ifelse(is.null(party_info$party_email) || is.na(party_info$party_email),
+                        "No email provided", party_info$party_email), "\n",
       "Total Guests: ", party_info$total_guests, "\n",
       "Total Guest Charge: $", party_info$grand_total_guest_charge, "\n\n",
       "Accommodation Summary:\n"
@@ -141,15 +158,15 @@ generate_cost_summary <- function(results) {
       
       # Construct the staying string - only include nights the guest is staying
       staying_days <- c()
-      if(guest$is_staying_friday) staying_days <- c(staying_days, "Friday")
-      if(guest$is_staying_saturday) staying_days <- c(staying_days, "Saturday")
-      if(guest$is_staying_sunday) staying_days <- c(staying_days, "Sunday")
+      if(isTRUE(guest$is_staying_friday)) staying_days <- c(staying_days, "Friday")
+      if(isTRUE(guest$is_staying_saturday)) staying_days <- c(staying_days, "Saturday")
+      if(isTRUE(guest$is_staying_sunday)) staying_days <- c(staying_days, "Sunday")
       
       staying_str <- if(length(staying_days) > 0) paste(staying_days, collapse = ", ") else "Not staying overnight"
       
       # Construct accommodation type - only if guest is staying
-      accommodation_type <- if(guest$is_staying_friday || guest$is_staying_saturday || guest$is_staying_sunday) {
-        if(guest$is_camping) "Camping" else "Standard Lodging"
+      accommodation_type <- if(isTRUE(guest$is_staying_friday) || isTRUE(guest$is_staying_saturday) || isTRUE(guest$is_staying_sunday)) {
+        if(isTRUE(guest$is_camping)) "Camping" else "Standard Lodging"
       } else {
         "Not staying overnight"
       }
@@ -161,24 +178,24 @@ generate_cost_summary <- function(results) {
         "   - Accommodation Type: ", accommodation_type, "\n"
       )
       
-      # Add cost information - only for applicable nights
-      if(guest$is_staying_friday) {
+      # Add cost information - only for applicable nights and check if columns exist
+      if("friday_guest_charge" %in% names(guest) && isTRUE(guest$is_staying_friday)) {
         guest_str <- paste0(guest_str, 
                             "   - Friday Guest Charge: $", guest$friday_guest_charge, "\n")
       }
       
-      if(guest$is_staying_saturday) {
+      if("saturday_guest_charge" %in% names(guest) && isTRUE(guest$is_staying_saturday)) {
         guest_str <- paste0(guest_str, 
                             "   - Saturday Guest Charge: $", guest$saturday_guest_charge, "\n")
       }
       
-      if(guest$is_staying_sunday) {
+      if("sunday_guest_charge" %in% names(guest) && isTRUE(guest$is_staying_sunday)) {
         guest_str <- paste0(guest_str, 
                             "   - Sunday Guest Charge: $", guest$sunday_guest_charge, "\n")
       }
       
-      # Add total guest charge
-      if(guest$total_guest_charge > 0) {
+      # Add total guest charge if it exists
+      if("total_guest_charge" %in% names(guest) && !is.na(guest$total_guest_charge) && guest$total_guest_charge > 0) {
         guest_str <- paste0(guest_str, 
                             "   - Total Guest Charge: $", guest$total_guest_charge, "\n")
       }
@@ -191,7 +208,7 @@ generate_cost_summary <- function(results) {
     
     return(list(
       party = p,
-      party_name = party_info$party_name,
+      party_name = if (is.null(party_info$party_name)) paste("Party", p) else party_info$party_name,
       guest_names = party_info$guest_names,
       email = party_info$party_email,
       summary = full_summary,
@@ -275,7 +292,20 @@ generate_invoice_content <- function(party_detail) {
 }
 
 # Function to generate a formatted PDF invoice
+# Function to generate a formatted PDF invoice
 generate_invoice_pdf <- function(party_detail, output_file) {
+  # Ensure party_detail has all the required fields
+  if (is.null(party_detail$party_name) || is.null(party_detail$email) || 
+      is.null(party_detail$guest_names) || is.null(party_detail$total_guest_charge)) {
+    cat("Warning: Missing required information for", party_detail$party, "- skipping PDF generation\n")
+    return(NULL)
+  }
+  
+  # Ensure all logical flags exist
+  if (is.null(party_detail$staying_friday)) party_detail$staying_friday <- FALSE
+  if (is.null(party_detail$staying_saturday)) party_detail$staying_saturday <- FALSE
+  if (is.null(party_detail$staying_sunday)) party_detail$staying_sunday <- FALSE
+  
   # Create a markdown version of the invoice
   invoice_md <- paste0(
     "---\n",
@@ -287,14 +317,15 @@ generate_invoice_pdf <- function(party_detail, output_file) {
     
     "## Invoice for: ", party_detail$party_name, "\n\n",
     
-    "**Email:** ", party_detail$email, "\n",
+    "**Email:** ", ifelse(is.null(party_detail$email) || is.na(party_detail$email), 
+                          "No email provided", party_detail$email), "\n",
     "**Guests:** ", party_detail$guest_names, "\n\n",
     
     "## Accommodation Details\n\n"
   )
   
   # Add only the applicable nights - showing nothing for nights not staying
-  if (party_detail$staying_friday) {
+  if (isTRUE(party_detail$staying_friday)) {
     invoice_md <- paste0(invoice_md,
                          "### Friday, June 20\n",
                          "  Standard accommodation includes:\n",
@@ -303,7 +334,7 @@ generate_invoice_pdf <- function(party_detail, output_file) {
                          "  * Overnight accommodation\n\n")
   }
   
-  if (party_detail$staying_saturday) {
+  if (isTRUE(party_detail$staying_saturday)) {
     invoice_md <- paste0(invoice_md,
                          "### Saturday, June 21\n",
                          "  Standard accommodation includes:\n",
@@ -313,7 +344,7 @@ generate_invoice_pdf <- function(party_detail, output_file) {
                          "  * Overnight accommodation\n\n")
   }
   
-  if (party_detail$staying_sunday) {
+  if (isTRUE(party_detail$staying_sunday)) {
     invoice_md <- paste0(invoice_md,
                          "### Sunday, June 22\n",
                          "  Standard accommodation includes:\n",
@@ -340,18 +371,30 @@ generate_invoice_pdf <- function(party_detail, output_file) {
   md_file <- tempfile(fileext = ".md")
   writeLines(invoice_md, md_file)
   
-  # Render the PDF
-  try({
+  # Render the PDF with proper error handling
+  result <- try({
     rmarkdown::render(
       input = md_file,
       output_file = output_file,
       quiet = TRUE
     )
     cat("Generated invoice PDF:", output_file, "\n")
+    TRUE
   }, silent = TRUE)
   
   # Clean up
   unlink(md_file)
+  
+  if (inherits(result, "try-error")) {
+    cat("Error generating PDF invoice:", conditionMessage(result), "\n")
+    cat("Creating text invoice instead.\n")
+    # Create a text version as fallback
+    invoice_text <- gsub("\\*\\*", "", invoice_md)
+    invoice_text <- gsub("###", "--", invoice_text)
+    invoice_text <- gsub("#", "", invoice_text)
+    writeLines(invoice_text, paste0(tools::file_path_sans_ext(output_file), ".txt"))
+    return(paste0(tools::file_path_sans_ext(output_file), ".txt"))
+  }
   
   return(output_file)
 }
@@ -367,9 +410,11 @@ generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
   
   # Generate files for each party with costs > 0
   for (party_detail in cost_summary$party_details) {
-    # Skip parties with $0 charge
-    if (party_detail$total_guest_charge == 0) {
-      cat("Skipping $0 charge party:", party_detail$party_name, "\n")
+    # Skip parties with $0 charge or NA charge
+    if (is.null(party_detail$total_guest_charge) || 
+        is.na(party_detail$total_guest_charge) || 
+        party_detail$total_guest_charge == 0) {
+      cat("Skipping $0 or NA charge party:", party_detail$party_name, "\n")
       next
     }
     

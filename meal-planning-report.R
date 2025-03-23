@@ -1,5 +1,5 @@
-# Function to generate a detailed meal planning report
-generate_meal_planning_report <- function(results, output_file = "meal_planning_report.csv") {
+# Function to generate a detailed meal planning report with enhanced age category support
+generate_meal_planning_report <- function(results, output_file = "meal_planning_report.pdf") {
   # Force directory creation
   output_dir <- dirname(output_file)
   if (output_dir != "." && output_dir != "") {
@@ -54,6 +54,33 @@ generate_meal_planning_report <- function(results, output_file = "meal_planning_
     )
   )
   
+  # Add vegetarian and special diet counts if available
+  if ("friday_dinner_vegetarian" %in% names(meal_counts)) {
+    meal_summary$Vegetarian <- c(
+      meal_counts$friday_dinner_vegetarian,
+      meal_counts$saturday_breakfast_vegetarian,
+      meal_counts$saturday_lunch_vegetarian,
+      meal_counts$saturday_dinner_vegetarian,
+      meal_counts$sunday_breakfast_vegetarian,
+      meal_counts$sunday_lunch_vegetarian,
+      meal_counts$sunday_dinner_vegetarian,
+      meal_counts$monday_breakfast_vegetarian
+    )
+  }
+  
+  if ("friday_dinner_special_diet" %in% names(meal_counts)) {
+    meal_summary$Special_Diet <- c(
+      meal_counts$friday_dinner_special_diet,
+      meal_counts$saturday_breakfast_special_diet,
+      meal_counts$saturday_lunch_special_diet,
+      meal_counts$saturday_dinner_special_diet,
+      meal_counts$sunday_breakfast_special_diet,
+      meal_counts$sunday_lunch_special_diet,
+      meal_counts$sunday_dinner_special_diet,
+      meal_counts$monday_breakfast_special_diet
+    )
+  }
+  
   # Create dietary restrictions summary
   dietary_restrictions <- results$guests %>%
     filter(!is.na(dietary_restrictions) & dietary_restrictions != "") %>%
@@ -74,291 +101,166 @@ generate_meal_planning_report <- function(results, output_file = "meal_planning_
     select(
       first_name,
       last_name,
+      age_category,
       meal_preferences,
       dietary_restrictions
     ) %>%
     rename(
       "First Name" = first_name,
       "Last Name" = last_name,
+      "Age Category" = age_category,
       "Meal Preference" = meal_preferences,
       "Dietary Restrictions" = dietary_restrictions
     )
   
-  # Process age category data if available
-  has_age_categories <- "age_category" %in% names(results$guests)
-  
-  if (has_age_categories) {
-    # Add age category to special diet guests
-    special_diet_guests <- results$guests %>%
-      filter(!is.na(dietary_restrictions) & dietary_restrictions != "") %>%
-      select(
-        first_name,
-        last_name,
-        age_category,
-        meal_preferences,
-        dietary_restrictions
-      ) %>%
+  # Extract meal rosters by age category if available
+  meal_by_age_data <- NULL
+  if (!is.null(results$meal_counts_by_age) && !is.null(results$meal_counts_by_age$all_meals)) {
+    meal_by_age_data <- results$meal_counts_by_age$all_meals %>%
       rename(
-        "First Name" = first_name,
-        "Last Name" = last_name,
+        "Meal" = meal,
         "Age Category" = age_category,
-        "Meal Preference" = meal_preferences,
-        "Dietary Restrictions" = dietary_restrictions
+        "Count" = count,
+        "Vegetarian" = veg_count,
+        "Meat/Fish" = meat_fish_count,
+        "Special Diet" = special_diet_count
       )
+  } else if (!is.null(results$meal_rosters)) {
+    # Alternative extraction from meal_rosters
+    rosters <- results$meal_rosters
+    meal_by_age_data <- data.frame(
+      Meal = character(),
+      "Age Category" = character(),
+      Count = integer(),
+      Vegetarian = integer(),
+      "Meat/Fish" = integer(),
+      "Special Diet" = integer(),
+      stringsAsFactors = FALSE
+    )
     
-    # Process meal counts by age if available
-    meal_summary_by_age <- NULL
-    if ("meal_counts_by_age" %in% names(results) && !is.null(results$meal_counts_by_age)) {
-      meal_summary_by_age <- results$meal_counts_by_age$all_meals %>%
-        rename(
-          "Meal" = meal,
-          "Age Category" = age_category,
-          "Count" = count,
-          "Vegetarian/Fish" = veg_count,
-          "Meat/Fish" = meat_fish_count,
-          "Special Diet" = special_diet_count
-        )
-    } else {
-      # Create a basic meal summary by age if meal_counts_by_age isn't available
-      age_categories <- unique(results$guests$age_category)
-      
-      meal_summary_by_age <- data.frame(
-        Meal = character(),
-        `Age Category` = character(),
-        Count = integer(),
-        `Vegetarian/Fish` = integer(),
-        `Meat/Fish` = integer(),
-        `Special Diet` = integer(),
-        stringsAsFactors = FALSE
-      )
-      
-      for (meal_name in meal_summary$Meal) {
-        for (age_cat in age_categories) {
-          # Filter guests by age category
-          age_guests <- results$guests %>% filter(age_category == age_cat)
-          
-          # Determine which guests attend each meal
-          is_friday_dinner <- with(age_guests, is_staying_friday | 
-                                     (fridayshabbat_rsvp == "Joyfully Accept" & !is_staying_friday))
-          is_saturday_breakfast <- with(age_guests, is_staying_friday)
-          is_saturday_lunch <- with(age_guests, is_staying_saturday | 
-                                      saturday_offsite_rsvp == "Yes, I will join for lunch only" | 
-                                      saturday_offsite_rsvp == "Yes, I will join for lunch and dinner")
-          is_saturday_dinner <- with(age_guests, is_staying_saturday | 
-                                       saturday_offsite_rsvp == "Yes, I will join for dinner only" | 
-                                       saturday_offsite_rsvp == "Yes, I will join for lunch and dinner")
-          is_sunday_breakfast <- with(age_guests, is_staying_saturday)
-          is_sunday_lunch <- with(age_guests, wedding_rsvp == "Joyfully Accept")
-          is_sunday_dinner <- with(age_guests, is_staying_sunday)
-          is_monday_breakfast <- with(age_guests, is_staying_sunday)
-          
-          # Determine which meal to count
-          meal_attendees <- switch(meal_name,
-                                   "Friday Dinner" = sum(is_friday_dinner, na.rm = TRUE),
-                                   "Saturday Breakfast" = sum(is_saturday_breakfast, na.rm = TRUE),
-                                   "Saturday Lunch" = sum(is_saturday_lunch, na.rm = TRUE),
-                                   "Saturday Dinner" = sum(is_saturday_dinner, na.rm = TRUE),
-                                   "Sunday Breakfast" = sum(is_sunday_breakfast, na.rm = TRUE),
-                                   "Sunday Lunch (Wedding)" = sum(is_sunday_lunch, na.rm = TRUE),
-                                   "Sunday Dinner" = sum(is_sunday_dinner, na.rm = TRUE),
-                                   "Monday Breakfast" = sum(is_monday_breakfast, na.rm = TRUE),
-                                   0 # Default
-          )
-          
-          # Only add rows for meals with attendees
-          if (meal_attendees > 0) {
-            # Calculate dietary counts
-            meal_filter <- switch(meal_name,
-                                  "Friday Dinner" = is_friday_dinner,
-                                  "Saturday Breakfast" = is_saturday_breakfast,
-                                  "Saturday Lunch" = is_saturday_lunch,
-                                  "Saturday Dinner" = is_saturday_dinner,
-                                  "Sunday Breakfast" = is_sunday_breakfast,
-                                  "Sunday Lunch (Wedding)" = is_sunday_lunch,
-                                  "Sunday Dinner" = is_sunday_dinner,
-                                  "Monday Breakfast" = is_monday_breakfast,
-                                  rep(FALSE, nrow(age_guests))
-            )
-            
-            filtered_guests <- age_guests[meal_filter, ]
-            
-            veg_count <- sum(filtered_guests$meal_preferences == "No meat" | 
-                               filtered_guests$meal_preferences == "Opt-in for fish only", na.rm = TRUE)
-            
-            meat_fish_count <- sum(filtered_guests$meal_preferences == "Opt-in for chicken and fish" | 
-                                     filtered_guests$meal_preferences == "Opt-in for chicken only", na.rm = TRUE)
-            
-            special_diet_count <- sum(!is.na(filtered_guests$dietary_restrictions) & 
-                                        filtered_guests$dietary_restrictions != "", na.rm = TRUE)
-            
-            meal_summary_by_age <- rbind(meal_summary_by_age, data.frame(
-              Meal = meal_name,
-              `Age Category` = age_cat,
-              Count = meal_attendees,
-              `Vegetarian/Fish` = veg_count,
-              `Meat/Fish` = meat_fish_count,
-              `Special Diet` = special_diet_count,
-              stringsAsFactors = FALSE
-            ))
-          }
-        }
+    for (meal_code in names(rosters)) {
+      if (!is.null(rosters[[meal_code]]$summary)) {
+        meal_data <- rosters[[meal_code]]$summary %>%
+          mutate(
+            Meal = rosters[[meal_code]]$meal_name,
+            "Age Category" = age_category
+          ) %>%
+          rename(
+            Count = total_guests,
+            Vegetarian = vegetarian_count,
+            "Meat/Fish" = meat_fish_count,
+            "Special Diet" = special_diet_count
+          ) %>%
+          select(Meal, "Age Category", Count, Vegetarian, "Meat/Fish", "Special Diet")
+        
+        meal_by_age_data <- rbind(meal_by_age_data, meal_data)
       }
     }
   }
   
-  # Write out CSV files
+  # Ensure we have meal attendee lists for each meal
+  meal_attendees <- list()
+  meal_codes <- c("friday_dinner", "saturday_breakfast", "saturday_lunch", 
+                  "saturday_dinner", "sunday_breakfast", "sunday_lunch", 
+                  "sunday_dinner", "monday_breakfast")
+  
+  meal_names <- c("Friday Dinner", "Saturday Breakfast", "Saturday Lunch", 
+                  "Saturday Dinner", "Sunday Breakfast", "Sunday Lunch (Wedding)", 
+                  "Sunday Dinner", "Monday Breakfast")
+  
+  # Function to identify guests attending a specific meal
+  get_meal_attendees <- function(guests, meal_code) {
+    # Determine which guests attend this meal based on their RSVP status
+    attendees <- switch(meal_code,
+                        "friday_dinner" = guests %>% filter(is_staying_friday | 
+                                                              (fridayshabbat_rsvp == "Joyfully Accept" & !is_staying_friday)),
+                        "saturday_breakfast" = guests %>% filter(is_staying_friday),
+                        "saturday_lunch" = guests %>% filter(is_staying_saturday | 
+                                                               saturday_offsite_rsvp == "Yes, I will join for lunch only" | 
+                                                               saturday_offsite_rsvp == "Yes, I will join for lunch and dinner"),
+                        "saturday_dinner" = guests %>% filter(is_staying_saturday | 
+                                                                saturday_offsite_rsvp == "Yes, I will join for dinner only" | 
+                                                                saturday_offsite_rsvp == "Yes, I will join for lunch and dinner"),
+                        "sunday_breakfast" = guests %>% filter(is_staying_saturday),
+                        "sunday_lunch" = guests %>% filter(wedding_rsvp == "Joyfully Accept"),
+                        "sunday_dinner" = guests %>% filter(is_staying_sunday),
+                        "monday_breakfast" = guests %>% filter(is_staying_sunday),
+                        guests %>% filter(FALSE) # Empty default
+    )
+    
+    return(attendees)
+  }
+  
+  # Create meal attendee lists
+  for (i in 1:length(meal_codes)) {
+    meal_code <- meal_codes[i]
+    meal_name <- meal_names[i]
+    
+    # Check if meal roster is already available
+    if (!is.null(results$meal_rosters) && meal_code %in% names(results$meal_rosters)) {
+      meal_attendees[[meal_code]] <- results$meal_rosters[[meal_code]]$attendees
+    } else {
+      # Generate attendee list from guest data
+      meal_attendees[[meal_code]] <- get_meal_attendees(results$guests, meal_code)
+    }
+  }
+  
+  # Create CSV files for each meal with detailed attendee lists
   csv_base_name <- tools::file_path_sans_ext(output_file)
+  dir.create(paste0(csv_base_name, "_meal_details"), showWarnings = FALSE, recursive = TRUE)
   
-  # Write meal summary
+  for (i in 1:length(meal_codes)) {
+    meal_code <- meal_codes[i]
+    meal_name <- meal_names[i]
+    
+    attendees <- meal_attendees[[meal_code]]
+    
+    if (nrow(attendees) > 0) {
+      # Create a detailed attendee list with dietary info
+      attendee_list <- attendees %>%
+        select(first_name, last_name, age_category, meal_preferences, dietary_restrictions) %>%
+        rename(
+          "First Name" = first_name,
+          "Last Name" = last_name,
+          "Age Category" = age_category,
+          "Meal Preference" = meal_preferences,
+          "Dietary Restrictions" = dietary_restrictions
+        )
+      
+      # Save the attendee list
+      write_csv(attendee_list, 
+                paste0(csv_base_name, "_meal_details/", 
+                       gsub(" ", "_", tolower(meal_code)), "_attendees.csv"))
+      
+      # Create a summary by age category
+      age_summary <- attendees %>%
+        group_by(age_category) %>%
+        summarize(
+          Total = n(),
+          Vegetarian = sum(is_vegetarian, na.rm = TRUE),
+          `Meat/Fish` = sum(!is_vegetarian, na.rm = TRUE),
+          `Special Diet` = sum(has_special_diet, na.rm = TRUE)
+        )
+      
+      # Save the age summary
+      write_csv(age_summary, 
+                paste0(csv_base_name, "_meal_details/", 
+                       gsub(" ", "_", tolower(meal_code)), "_by_age.csv"))
+    }
+  }
+  
+  # Write out the main CSV files
   write_csv(meal_summary, paste0(csv_base_name, "_meal_summary.csv"))
-  
-  # Write meal preferences
   write_csv(meal_preferences, paste0(csv_base_name, "_meal_preferences.csv"))
-  
-  # Write dietary restrictions
   write_csv(dietary_restrictions, paste0(csv_base_name, "_dietary_restrictions.csv"))
-  
-  # Write special diet guests
   write_csv(special_diet_guests, paste0(csv_base_name, "_special_diet_guests.csv"))
   
-  # Write age-based meal summary if it exists
-  if (exists("meal_summary_by_age") && !is.null(meal_summary_by_age) && nrow(meal_summary_by_age) > 0) {
-    write_csv(meal_summary_by_age, paste0(csv_base_name, "_meal_summary_by_age.csv"))
+  if (!is.null(meal_by_age_data) && nrow(meal_by_age_data) > 0) {
+    write_csv(meal_by_age_data, paste0(csv_base_name, "_meal_by_age.csv"))
   }
   
-  # Create a text summary file for easy reference
-  summary_text <- paste0(
-    "Wedding Meal Planning Report\n",
-    "For Wedding: Cyrena & Jon - June 20-23, 2025\n",
-    "Generated: ", format(Sys.Date(), "%B %d, %Y"), "\n\n",
-    
-    "== Meal Planning Summary ==\n\n",
-    paste(capture.output(print(meal_summary)), collapse = "\n"), "\n\n",
-    
-    "== Meal Preferences ==\n\n",
-    paste(capture.output(print(meal_preferences)), collapse = "\n"), "\n\n",
-    
-    "== Dietary Restrictions ==\n\n",
-    paste(capture.output(print(dietary_restrictions)), collapse = "\n"), "\n\n"
-  )
-  
-  # Add age category summary if it exists
-  if (exists("meal_summary_by_age") && !is.null(meal_summary_by_age) && nrow(meal_summary_by_age) > 0) {
-    summary_text <- paste0(summary_text,
-                           "== Meal Summary by Age Category ==\n\n",
-                           paste(capture.output(print(meal_summary_by_age)), collapse = "\n"), "\n\n"
-    )
-  }
-  
-  # Add important notes
-  summary_text <- paste0(summary_text,
-                         "== Important Notes ==\n\n",
-                         "1. Meal Inclusion by Stay:\n",
-                         "   - Friday night guests: Friday dinner, Saturday breakfast\n",
-                         "   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast\n",
-                         "   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast\n",
-                         "   - All wedding guests: Sunday lunch (wedding meal)\n\n",
-                         
-                         "2. Saturday Off-Site Guest Meals:\n",
-                         "   - Guests can choose to join for lunch only, dinner only, or both meals\n",
-                         "   - The counts above reflect these preferences from RSVP responses\n\n",
-                         
-                         "3. Dietary Information:\n",
-                         "   - Non-meat options should be available at all meals\n",
-                         "   - Please review the detailed dietary restrictions list and ensure appropriate options are available\n",
-                         "   - See special_diet_guests.csv for individual dietary needs\n\n",
-                         
-                         "4. Catering Planning:\n",
-                         "   - Sunday lunch (wedding reception) is the largest meal requiring service for all guests\n",
-                         "   - Sunday dinner and Monday breakfast are special catering for overnight guests only\n"
-  )
-  
-  # Write the text summary
-  writeLines(summary_text, paste0(csv_base_name, "_summary.txt"))
-  
-  # Create one-page quick reference for catering staff
-  catering_reference <- paste0(
-    "MEAL PLANNING QUICK REFERENCE\n",
-    "Wedding: Cyrena & Jon - June 20-23, 2025\n\n",
-    
-    "TOTAL MEAL COUNTS:\n",
-    "- Friday Dinner: ", meal_counts$total_friday_dinner, "\n",
-    "- Saturday Breakfast: ", meal_counts$total_saturday_breakfast, "\n",
-    "- Saturday Lunch: ", meal_counts$total_saturday_lunch, "\n",
-    "- Saturday Dinner: ", meal_counts$total_saturday_dinner, "\n",
-    "- Sunday Breakfast: ", meal_counts$total_sunday_breakfast, "\n",
-    "- Sunday Lunch (Wedding): ", meal_counts$total_sunday_lunch, "\n",
-    "- Sunday Dinner: ", meal_counts$total_sunday_dinner, "\n",
-    "- Monday Breakfast: ", meal_counts$total_monday_breakfast, "\n\n",
-    
-    "SPECIAL DIETS SUMMARY:\n"
-  )
-  
-  # Add special diet summary
-  if (nrow(dietary_restrictions) > 0) {
-    for (i in 1:nrow(dietary_restrictions)) {
-      catering_reference <- paste0(
-        catering_reference,
-        "- ", dietary_restrictions$restriction[i], ": ", dietary_restrictions$count[i], " guests\n"
-      )
-    }
-  } else {
-    catering_reference <- paste0(
-      catering_reference, 
-      "- No special dietary requirements recorded\n"
-    )
-  }
-  
-  # Add meal preferences
-  catering_reference <- paste0(
-    catering_reference,
-    "\nMEAL PREFERENCES:\n"
-  )
-  
-  if (nrow(meal_preferences) > 0) {
-    for (i in 1:nrow(meal_preferences)) {
-      catering_reference <- paste0(
-        catering_reference,
-        "- ", meal_preferences$preference[i], ": ", meal_preferences$count[i], " guests\n"
-      )
-    }
-  } else {
-    catering_reference <- paste0(
-      catering_reference, 
-      "- No meal preferences recorded\n"
-    )
-  }
-  
-  # Add age category breakdown if available
-  if (has_age_categories) {
-    catering_reference <- paste0(
-      catering_reference,
-      "\nAGE CATEGORIES:\n"
-    )
-    
-    # Get unique age categories and counts
-    age_counts <- results$guests %>%
-      group_by(age_cat = age_category) %>%
-      summarize(count = n()) %>%
-      arrange(desc(count))
-    
-    for (i in 1:nrow(age_counts)) {
-      catering_reference <- paste0(
-        catering_reference,
-        "- ", age_counts$age_cat[i], ": ", age_counts$count[i], " guests\n"
-      )
-    }
-  }
-  
-  # Write quick reference
-  writeLines(catering_reference, paste0(csv_base_name, "_quickref.txt"))
-  
-  cat("Meal planning report files generated in directory:", dirname(output_file), "\n")
-  
-  # If RMarkdown is available, try to generate a PDF
-  if (requireNamespace("rmarkdown", quietly = TRUE)) {
-    # Create a markdown report
-    rmd_content <- '
+  # Create a markdown report
+  rmd_content <- '
 ---
 title: "Wedding Meal Planning Report"
 subtitle: "For Wedding: Cyrena & Jon - June 20-23, 2025"
@@ -369,7 +271,7 @@ output: pdf_document
 ## Meal Planning Summary
 
 ```{r, echo=FALSE}
-knitr::kable(params$meal_summary, 
+knitr::kable(meal_summary, 
              caption = "Meal Counts by Day",
              align = "lccc")
 ```
@@ -377,7 +279,7 @@ knitr::kable(params$meal_summary,
 ## Meal Preferences
 
 ```{r, echo=FALSE}
-knitr::kable(params$meal_preferences, 
+knitr::kable(meal_preferences, 
              caption = "Guest Meal Preferences",
              align = "lc")
 ```
@@ -385,28 +287,37 @@ knitr::kable(params$meal_preferences,
 ## Dietary Restrictions
 
 ```{r, echo=FALSE}
-knitr::kable(params$dietary_restrictions, 
+knitr::kable(dietary_restrictions, 
              caption = "Guest Dietary Restrictions",
              align = "lc")
 ```
 '
-    
-    # Add age category section if available
-    if (exists("meal_summary_by_age") && !is.null(meal_summary_by_age) && nrow(meal_summary_by_age) > 0) {
-      rmd_content <- paste0(rmd_content, '
+  
+  # Add meal by age section if available
+  if (!is.null(meal_by_age_data) && nrow(meal_by_age_data) > 0) {
+    rmd_content <- paste0(rmd_content, '
 
-## Meal Counts by Age Category
+## Meals by Age Category
 
 ```{r, echo=FALSE}
-knitr::kable(params$meal_summary_by_age, 
-             caption = "Meal Counts by Age Category",
-             align = "lccccc")
+# Display meals by age category
+knitr::kable(meal_by_age_data, 
+             caption = "Meal Breakdown by Age Category",
+             align = "llcccc")
 ```
 ')
-    }
-    
-    # Add important notes section
-    rmd_content <- paste0(rmd_content, '
+  }
+  
+  # Add special diet guests section
+  rmd_content <- paste0(rmd_content, '
+
+## Guests with Special Dietary Requirements
+
+```{r, echo=FALSE}
+knitr::kable(special_diet_guests, 
+             caption = "Guests with Special Dietary Requirements",
+             align = "lllll")
+```
 
 ## Important Notes
 
@@ -428,66 +339,106 @@ knitr::kable(params$meal_summary_by_age,
 4. **Catering Planning:**
    - Sunday lunch (wedding reception) is the largest meal requiring service for all guests
    - Sunday dinner and Monday breakfast are special catering for overnight guests only
+   - Detailed per-meal attendee lists with dietary information are provided in separate CSV files
 ')
-    
-    # Add special diets list if available
-    if (nrow(special_diet_guests) > 0) {
-      rmd_content <- paste0(rmd_content, '
-
-## Guests with Special Dietary Needs
-
-```{r, echo=FALSE}
-knitr::kable(params$special_diet_guests, 
-             caption = "Guests with Special Dietary Requirements",
-             align = "llll")
-```
-')
-    }
-    
-    # Write the RMD file
-    rmd_file <- tempfile(fileext = ".Rmd")
-    writeLines(rmd_content, rmd_file)
-    
-    # Render the PDF with error handling
-    pdf_output_file <- paste0(tools::file_path_sans_ext(output_file), ".pdf")
-    
-    tryCatch({
-      params_list <- list(
+  
+  # Write the RMD file
+  rmd_file <- tempfile(fileext = ".Rmd")
+  writeLines(rmd_content, rmd_file)
+  
+  # Render the PDF with error handling
+  tryCatch({
+    rmarkdown::render(
+      input = rmd_file,
+      output_file = output_file,
+      params = list(
         meal_summary = meal_summary,
         meal_preferences = meal_preferences,
         dietary_restrictions = dietary_restrictions,
-        special_diet_guests = special_diet_guests
-      )
-      
-      # Add meal_summary_by_age if it exists
-      if (exists("meal_summary_by_age") && !is.null(meal_summary_by_age) && nrow(meal_summary_by_age) > 0) {
-        params_list$meal_summary_by_age <- meal_summary_by_age
-      }
-      
-      rmarkdown::render(
-        input = rmd_file,
-        output_file = pdf_output_file,
-        params = params_list,
-        quiet = TRUE
-      )
-      cat("Meal planning PDF report generated:", pdf_output_file, "\n")
-    }, error = function(e) {
-      cat("Error generating meal planning PDF report:", conditionMessage(e), "\n")
-      cat("CSV reports have been generated instead.\n")
-    })
+        special_diet_guests = special_diet_guests,
+        meal_by_age_data = meal_by_age_data
+      ),
+      quiet = TRUE
+    )
+    cat("Meal planning report generated:", output_file, "\n")
+  }, error = function(e) {
+    cat("Error generating meal planning report PDF:", conditionMessage(e), "\n")
+    cat("CSV reports have been generated instead.\n")
+  })
+  
+  # Clean up
+  unlink(rmd_file)
+  
+  # Create a text summary for quick reference
+  summary_text <- paste0(
+    "MEAL PLANNING QUICK REFERENCE\n",
+    "Wedding: Cyrena & Jon - June 20-23, 2025\n\n",
     
-    # Clean up
-    unlink(rmd_file)
-  } else {
-    cat("Note: RMarkdown package not available. Only CSV reports were generated.\n")
+    "TOTAL MEAL COUNTS:\n"
+  )
+  
+  for (i in 1:nrow(meal_summary)) {
+    summary_text <- paste0(summary_text,
+                           "- ", meal_summary$Meal[i], ": ", meal_summary$Total[i])
+    
+    if ("Vegetarian" %in% names(meal_summary)) {
+      summary_text <- paste0(summary_text,
+                             " (", meal_summary$Vegetarian[i], " vegetarian)")
+    }
+    
+    if ("Special_Diet" %in% names(meal_summary)) {
+      summary_text <- paste0(summary_text,
+                             " (", meal_summary$Special_Diet[i], " special diet)")
+    }
+    
+    summary_text <- paste0(summary_text, "\n")
   }
   
-  # Return the meal summaries
+  # Add dietary restrictions summary
+  summary_text <- paste0(summary_text, 
+                         "\nDIETARY RESTRICTIONS:\n")
+  
+  if (nrow(dietary_restrictions) > 0) {
+    for (i in 1:nrow(dietary_restrictions)) {
+      summary_text <- paste0(summary_text,
+                             "- ", dietary_restrictions$restriction[i], ": ", 
+                             dietary_restrictions$count[i], " guests\n")
+    }
+  } else {
+    summary_text <- paste0(summary_text, "- No special dietary requirements recorded\n")
+  }
+  
+  # Add meal preferences summary
+  summary_text <- paste0(summary_text, 
+                         "\nMEAL PREFERENCES:\n")
+  
+  if (nrow(meal_preferences) > 0) {
+    for (i in 1:nrow(meal_preferences)) {
+      summary_text <- paste0(summary_text,
+                             "- ", meal_preferences$preference[i], ": ", 
+                             meal_preferences$count[i], " guests\n")
+    }
+  } else {
+    summary_text <- paste0(summary_text, "- No meal preferences recorded\n")
+  }
+  
+  # Add notes about detailed files
+  summary_text <- paste0(summary_text, 
+                         "\nDETAILED REPORTS:\n",
+                         "- Detailed meal attendee lists by age category are available in the '",
+                         basename(csv_base_name), "_meal_details' directory\n",
+                         "- Each meal has its own CSV file with complete dietary information\n")
+  
+  # Write the text summary
+  writeLines(summary_text, paste0(csv_base_name, "_summary.txt"))
+  
+  # Return the meal data for potential further processing
   return(list(
     meal_summary = meal_summary,
     meal_preferences = meal_preferences,
     dietary_restrictions = dietary_restrictions,
     special_diet_guests = special_diet_guests,
-    meal_summary_by_age = if (exists("meal_summary_by_age")) meal_summary_by_age else NULL
+    meal_by_age_data = meal_by_age_data,
+    meal_attendees = meal_attendees
   ))
 }
