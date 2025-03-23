@@ -1,0 +1,36 @@
+COMPREHENSIVE MEAL PLANNING SUMMARY
+Wedding: Cyrena & Jon - June 20-23, 2025
+Generated: March 23, 2025
+
+== Meal Counts Summary ==
+
+Friday Dinner: 15 guests
+Saturday Breakfast: 12 guests
+Saturday Lunch: 36 guests
+Saturday Dinner: 36 guests
+Sunday Breakfast: 30 guests
+Sunday Lunch (Wedding): 46 guests
+Sunday Dinner: 10 guests
+Monday Breakfast: 10 guests
+
+== Dietary Requirements ==
+
+Vegetarian/Fish Only: 11 guests
+Special Dietary Needs: 14 guests
+
+== Important Notes ==
+
+1. Meal Schedule:
+   - Friday Dinner: 6:00-8:00 PM
+   - Saturday Breakfast: 7:30-9:30 AM
+   - Saturday Lunch: 12:00-2:00 PM
+   - Saturday Dinner: 6:00-8:00 PM
+   - Sunday Breakfast: 7:30-9:30 AM
+   - Sunday Lunch (Wedding): 1:00-3:00 PM
+   - Sunday Dinner: 6:00-8:00 PM
+   - Monday Breakfast: 7:30-9:30 AM
+
+2. All meals include vegetarian options.
+3. Special dietary needs have been noted and accommodated.
+4. Detailed meal reports by age category are available in the age_reports directory.
+

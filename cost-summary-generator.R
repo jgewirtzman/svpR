@@ -10,8 +10,6 @@ library(knitr)
 library(rmarkdown)
 
 # Function to generate a cost summary for each party
-
-# Function to generate a cost summary for each party
 generate_cost_summary <- function(results) {
   # Extract party list and guest costs
   party_summary <- results$party_summary
@@ -291,9 +289,15 @@ generate_invoice_content <- function(party_detail) {
   return(invoice_text)
 }
 
-# Function to generate a formatted PDF invoice
-# Function to generate a formatted PDF invoice
+# UPDATED Function to generate a formatted PDF invoice with improved directory handling
 generate_invoice_pdf <- function(party_detail, output_file) {
+  # Make sure the directory exists
+  output_dir <- dirname(output_file)
+  if (!dir.exists(output_dir)) {
+    cat("Creating directory for invoice PDF:", output_dir, "\n")
+    dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  
   # Ensure party_detail has all the required fields
   if (is.null(party_detail$party_name) || is.null(party_detail$email) || 
       is.null(party_detail$guest_names) || is.null(party_detail$total_guest_charge)) {
@@ -367,6 +371,12 @@ generate_invoice_pdf <- function(party_detail, output_file) {
                        "*This invoice only includes accommodation costs. All wedding guests are welcome to attend the ceremony and reception at no additional charge.*"
   )
   
+  # Check if the directory exists before writing
+  if (!dir.exists(output_dir)) {
+    cat("Error: Output directory", output_dir, "does not exist. Creating it now.\n")
+    dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  
   # Write the markdown file
   md_file <- tempfile(fileext = ".md")
   writeLines(invoice_md, md_file)
@@ -392,18 +402,30 @@ generate_invoice_pdf <- function(party_detail, output_file) {
     invoice_text <- gsub("\\*\\*", "", invoice_md)
     invoice_text <- gsub("###", "--", invoice_text)
     invoice_text <- gsub("#", "", invoice_text)
-    writeLines(invoice_text, paste0(tools::file_path_sans_ext(output_file), ".txt"))
-    return(paste0(tools::file_path_sans_ext(output_file), ".txt"))
+    txt_file <- paste0(tools::file_path_sans_ext(output_file), ".txt")
+    writeLines(invoice_text, txt_file)
+    return(txt_file)
   }
   
   return(output_file)
 }
 
-# Function to generate cost PDFs and invoices
+# UPDATED Function to generate cost PDFs and invoices with improved directory handling
 generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
-  # Create directory if it doesn't exist
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-  cat("Ensuring output directory exists:", output_dir, "\n")
+  # Create directory if it doesn't exist with better error handling
+  if (!dir.exists(output_dir)) {
+    cat("Creating cost directory:", output_dir, "\n")
+    dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+    
+    # Verify the directory was created
+    if (!dir.exists(output_dir)) {
+      cat("ERROR: Failed to create output directory:", output_dir, "\n")
+      cat("Using current directory as fallback\n")
+      output_dir <- "."
+    }
+  }
+  
+  cat("Ensuring output directory exists:", normalizePath(output_dir), "\n")
   
   # Generate a cost summary for all parties
   cost_summary <- generate_cost_summary(results)
@@ -425,6 +447,11 @@ generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
     
     # Create a unique filename for the cost summary
     filename <- file.path(output_dir, paste0("cost_summary_", safe_name, ".txt"))
+    
+    # Ensure the directory exists before writing
+    if (!dir.exists(dirname(filename))) {
+      dir.create(dirname(filename), recursive = TRUE, showWarnings = FALSE)
+    }
     
     # Write the cost summary
     writeLines(party_detail$summary, filename)
@@ -470,7 +497,8 @@ generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
   )
   
   # Write the summary to a file
-  writeLines(summary_text, file.path(output_dir, "cost_summary.txt"))
+  summary_filename <- file.path(output_dir, "cost_summary.txt")
+  writeLines(summary_text, summary_filename)
   
   cat("Generated cost summaries and invoices for", sum(sapply(cost_summary$party_details, function(pd) pd$total_guest_charge > 0)), "parties in", output_dir, "\n")
   
@@ -479,9 +507,20 @@ generate_cost_pdfs <- function(results, output_dir = "wedding_costs") {
 
 # Function to generate simplified emails with only applicable dates
 generate_simplified_emails <- function(results, output_dir = "wedding_emails") {
-  # Create directory if it doesn't exist
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-  cat("Ensuring email directory exists:", output_dir, "\n")
+  # Create directory if it doesn't exist with better error handling
+  if (!dir.exists(output_dir)) {
+    cat("Creating email directory:", output_dir, "\n")
+    dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+    
+    # Verify the directory was created
+    if (!dir.exists(output_dir)) {
+      cat("ERROR: Failed to create email directory:", output_dir, "\n")
+      cat("Using current directory as fallback\n")
+      output_dir <- "."
+    }
+  }
+  
+  cat("Ensuring email directory exists:", normalizePath(output_dir), "\n")
   
   # Generate cost summary
   cost_summary <- generate_cost_summary(results)
@@ -566,6 +605,11 @@ Cyrena & Jon
     safe_name <- gsub("[^a-zA-Z0-9]", "_", party_name)
     filename <- file.path(output_dir, paste0("email_", safe_name, ".txt"))
     
+    # Ensure the directory exists before writing
+    if (!dir.exists(dirname(filename))) {
+      dir.create(dirname(filename), recursive = TRUE, showWarnings = FALSE)
+    }
+    
     # Write email to file
     writeLines(email_content, filename)
   }
@@ -576,14 +620,14 @@ Cyrena & Jon
 # Main function to run the cost summary generation
 run_cost_summary <- function(file_path) {
   # Print current working directory for debugging
-  cat("Current working directory for cost summary:", getwd(), "\n")
+  cat("Current working directory for cost summary:", normalizePath(getwd()), "\n")
   
   # Generate reports with the wedding RSVP tracker
   results <- generate_wedding_reports(file_path)
   
-  # Use simple directory paths
-  costs_dir <- "wedding_costs"
-  emails_dir <- "wedding_emails"
+  # Use absolute paths for directory names
+  costs_dir <- file.path(normalizePath(getwd()), "wedding_costs")
+  emails_dir <- file.path(normalizePath(getwd()), "wedding_emails")
   
   # Generate cost PDFs and invoices
   cost_summary <- generate_cost_pdfs(results, costs_dir)

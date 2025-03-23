@@ -1,0 +1,38 @@
+Party: Dumbroff Family (4 guests)
+Guests: Matt Dumbroff, Anne Chandaprong, Max Dumbroff, Mila Dumbroff
+Email: mcdumbroff@gmail.com
+Total Guests: 4
+Total Guest Charge: $778
+
+Accommodation Summary:
+- Saturday night: 4 guests ($778)
+- Standard lodging: 4 guests
+
+Guest Charge Breakdown:
+- Saturday: $778
+
+Individual Guest Details:
+1. Matt Dumbroff
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+2. Anne Chandaprong
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+3. Max Dumbroff
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+4. Mila Dumbroff
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+

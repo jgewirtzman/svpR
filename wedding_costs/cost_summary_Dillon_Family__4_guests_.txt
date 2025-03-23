@@ -1,0 +1,38 @@
+Party: Dillon Family (4 guests)
+Guests: Lauren Dillon, Michael Dillon, Ava Dillon, Owen Dillon
+Email: ldillon123@comcast.net
+Total Guests: 4
+Total Guest Charge: $778
+
+Accommodation Summary:
+- Saturday night: 4 guests ($778)
+- Standard lodging: 4 guests
+
+Guest Charge Breakdown:
+- Saturday: $778
+
+Individual Guest Details:
+1. Lauren Dillon
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+2. Michael Dillon
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+3. Ava Dillon
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+4. Owen Dillon
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+

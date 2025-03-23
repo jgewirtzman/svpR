@@ -1,0 +1,32 @@
+Party: Rais Family (3 guests)
+Guests: Michael Rais, Monika Rais, Griffin Rais
+Email: mimo@nyc1.com
+Total Guests: 3
+Total Guest Charge: $583.5
+
+Accommodation Summary:
+- Saturday night: 3 guests ($583.5)
+- Standard lodging: 3 guests
+
+Guest Charge Breakdown:
+- Saturday: $583.5
+
+Individual Guest Details:
+1. Michael Rais
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+2. Monika Rais
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+3. Griffin Rais
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+

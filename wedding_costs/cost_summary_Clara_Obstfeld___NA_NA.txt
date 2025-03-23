@@ -1,0 +1,24 @@
+Party: Clara Obstfeld & NA NA
+Guests: Clara Obstfeld, NA NA
+Email: clara.obstfeld@gmail.com
+Total Guests: 2
+Total Guest Charge: $194.5
+
+Accommodation Summary:
+- Saturday night: 1 guests ($194.5)
+- Standard lodging: 1 guests
+
+Guest Charge Breakdown:
+- Saturday: $194.5
+
+Individual Guest Details:
+1. Clara Obstfeld
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $194.5
+   - Total Guest Charge: $194.5
+
+2. NA NA
+   - Staying: Not staying overnight
+   - Accommodation Type: Not staying overnight
+

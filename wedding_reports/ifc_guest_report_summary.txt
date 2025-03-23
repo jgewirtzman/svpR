@@ -1,0 +1,68 @@
+Isabella Freedman Center - Guest Stay Report
+For Wedding: Cyrena & Jon - June 20-23, 2025
+Generated: March 23, 2025
+
+== Summary of Guest Stays ==
+
+              Night Guests Standard_Lodging Camping Total_IFC_Charge Guest_Charge Host_Charge
+1   Friday, June 20     12               12       0             2970         1566        1404
+2 Saturday, June 21     30               30       0             7425         5835        1590
+3   Sunday, June 22     10               10       0                0            0           0
+
+== Age Categories by Night ==
+
+# A tibble: 2 × 4
+  age_category      `Friday, June 20` `Saturday, June 21` `Sunday, June 22`
+  <chr>                         <int>               <int>             <int>
+1 Adults 21+ Room                  12                  25                10
+2 Guests 12-21 Room                 0                   5                 0
+
+== Accommodation Types ==
+
+# A tibble: 2 × 9
+  Accommodation   Age_Category Count Friday_Count Saturday_Count Sunday_Count Total_IFC_Cost Guest_Charge
+  <chr>           <chr>        <int>        <int>          <int>        <int>          <dbl>        <dbl>
+1 Standard Lodgi… Adults 21+ …    25           12             25           10          4208.        3178.
+2 Standard Lodgi… Guests 12-2…     5            0              5            0          1238.         972.
+# ℹ 1 more variable: Host_Charge <dbl>
+
+== Meal Planning Summary ==
+
+                    Meal On_Site_Guests Off_Site_Guests Total Vegetarian Special_Diet
+1          Friday Dinner             12               3    15          4            2
+2     Saturday Breakfast             12               0    12          4            2
+3         Saturday Lunch             30               6    36          6           14
+4        Saturday Dinner             30               6    36          6           14
+5       Sunday Breakfast             30               0    30          6           14
+6 Sunday Lunch (Wedding)              0               0    46          6           14
+7          Sunday Dinner             10               0    10          4            1
+8       Monday Breakfast             10               0    10          4            1
+
+== Meal Roster by Age Category ==
+
+# A tibble: 2 × 9
+  Age_Category      Friday_Dinner Saturday_Breakfast Saturday_Lunch Saturday_Dinner Sunday_Breakfast
+  <chr>                     <int>              <int>          <int>           <int>            <int>
+1 Adults 21+ Room              12                 12             25              25               25
+2 Guests 12-21 Room             0                  0              5               5                5
+# ℹ 3 more variables: Sunday_Dinner <int>, Monday_Breakfast <int>, Sunday_Lunch <int>
+
+== Financial Summary ==
+
+Total IFC Charge: $5445
+Total Guest Charge: $4151
+Total Host Charge: $2994
+
+== Important Notes ==
+
+1. Meal Inclusion by Stay:
+   - Friday night guests: Friday dinner, Saturday breakfast
+   - Saturday night guests: Saturday lunch, dinner, Sunday breakfast
+   - Sunday night guests: Special catering for Sunday dinner, Monday breakfast
+   - All wedding guests: Sunday lunch (wedding meal)
+
+2. All guests listed are part of the wedding party for Cyrena & Jon.
+3. Please direct any questions to wedding@example.com or call (123) 456-7890.
+4. Special accommodation requests have been noted in the detailed guest list.
+5. Age categories are used for room assignments and meal planning.
+
