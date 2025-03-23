@@ -5,9 +5,9 @@ account: jgewirtzman
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 14313154
-bundleId: 9988321
+bundleId: 9989294
 url: https://jgewirtzman.shinyapps.io/svpR/
 version: 1
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: age-integration.R|age-workflow.R|charge_rates.csv|deploy_app.R|guestlist.csv|Wedding Budget Invite List.csv|wedding-rsvp-tracker_old.R|wedding_costs|wedding_emails|wedding_reports
+ignoredFiles: charge_rates.csv|guestlist.csv|Wedding Budget Invite List.csv|wedding-rsvp-tracker_old.R

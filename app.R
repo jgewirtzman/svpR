@@ -1,5 +1,5 @@
 # Wedding Dashboard App with Enhanced Views
-# Updated version with IFC roster, meal schedule, and comprehensive party tables
+# Updated version with improved handling of age categories and host charges
 
 # Load required libraries
 library(shiny)
@@ -391,7 +391,43 @@ server <- function(input, output, session) {
     req(input$guestlist)
     
     file_path <- input$guestlist$datapath
-    generate_wedding_reports(file_path)
+    
+    # Process the guest data and ensure age categories and costs are calculated
+    results <- generate_wedding_reports(file_path)
+    
+    # Ensure required fields are present
+    if (!"age_category" %in% names(results$guests)) {
+      results$guests$age_category <- "Adults 21+ Room"
+    }
+    
+    # Make sure vegetarian and special diet flags are set
+    if (!"is_vegetarian" %in% names(results$guests)) {
+      results$guests <- results$guests %>%
+        mutate(is_vegetarian = meal_preferences == "No meat" | meal_preferences == "Opt-in for fish only")
+    }
+    
+    if (!"has_special_diet" %in% names(results$guests)) {
+      results$guests <- results$guests %>%
+        mutate(has_special_diet = !is.na(dietary_restrictions) & dietary_restrictions != "")
+    }
+    
+    # Ensure cost columns have numeric values
+    cost_columns <- c("total_cost", "total_guest_charge", "total_host_charge", 
+                      "friday_cost", "saturday_cost", "sunday_cost", 
+                      "friday_guest_charge", "saturday_guest_charge", "sunday_guest_charge",
+                      "friday_host_charge", "saturday_host_charge", "sunday_host_charge")
+    
+    for (col in cost_columns) {
+      if (col %in% names(results$guests)) {
+        results$guests[[col]] <- as.numeric(results$guests[[col]])
+      } else {
+        # Add missing columns with default values
+        results$guests[[col]] <- 0
+      }
+    }
+    
+    # Return the enhanced results
+    return(results)
   })
   
   # Store selected party for detailed view
@@ -474,8 +510,19 @@ server <- function(input, output, session) {
   output$accommodation_plot <- renderPlotly({
     req(results())
     
-    # Extract data
+    # Extract data - make sure accommodation summary exists
     acc_summary <- results()$accommodation_summary
+    
+    # Check if accommodation_summary exists and has the required fields
+    if (is.null(acc_summary) || !all(c("friday_count", "saturday_count", "sunday_count") %in% names(acc_summary))) {
+      # Calculate summary if missing
+      acc_summary <- list(
+        friday_count = sum(results()$guests$is_staying_friday, na.rm = TRUE),
+        saturday_count = sum(results()$guests$is_staying_saturday, na.rm = TRUE),
+        sunday_count = sum(results()$guests$is_staying_sunday, na.rm = TRUE)
+      )
+    }
+    
     nights_data <- data.frame(
       night = c("Friday", "Saturday", "Sunday"),
       count = c(acc_summary$friday_count, acc_summary$saturday_count, acc_summary$sunday_count)
@@ -563,7 +610,21 @@ server <- function(input, output, session) {
   output$accommodation_summary_table <- renderTable({
     req(results())
     
-    acc_summary <- results()$accommodation_summary
+    # Extract accommodation summary or calculate it if missing
+    if (!is.null(results()$accommodation_summary)) {
+      acc_summary <- results()$accommodation_summary
+    } else {
+      # Calculate from guest data
+      acc_summary <- list(
+        friday_count = sum(results()$guests$is_staying_friday, na.rm = TRUE),
+        saturday_count = sum(results()$guests$is_staying_saturday, na.rm = TRUE),
+        sunday_count = sum(results()$guests$is_staying_sunday, na.rm = TRUE),
+        standard_lodging_count = sum((results()$guests$is_staying_friday | 
+                                        results()$guests$is_staying_saturday) & 
+                                       !results()$guests$is_camping, na.rm = TRUE),
+        camping_count = sum(results()$guests$is_camping, na.rm = TRUE)
+      )
+    }
     
     data.frame(
       Category = c(
@@ -586,7 +647,30 @@ server <- function(input, output, session) {
   output$meal_summary_table <- renderTable({
     req(results())
     
-    meal_counts <- results()$meal_counts
+    # Check if meal_counts exists in results
+    if (!is.null(results()$meal_counts)) {
+      meal_counts <- results()$meal_counts
+    } else {
+      # Calculate meal counts from guest data
+      meal_counts <- list(
+        total_friday_dinner = sum(results()$guests$is_staying_friday | 
+                                    (results()$guests$fridayshabbat_rsvp == "Joyfully Accept" & 
+                                       !results()$guests$is_staying_friday), na.rm = TRUE),
+        total_saturday_breakfast = sum(results()$guests$is_staying_friday, na.rm = TRUE),
+        total_saturday_lunch = sum(results()$guests$is_staying_saturday | 
+                                     results()$guests$saturday_offsite_rsvp == "Yes, I will join for lunch only" | 
+                                     results()$guests$saturday_offsite_rsvp == "Yes, I will join for lunch and dinner", 
+                                   na.rm = TRUE),
+        total_saturday_dinner = sum(results()$guests$is_staying_saturday | 
+                                      results()$guests$saturday_offsite_rsvp == "Yes, I will join for dinner only" | 
+                                      results()$guests$saturday_offsite_rsvp == "Yes, I will join for lunch and dinner", 
+                                    na.rm = TRUE),
+        total_sunday_breakfast = sum(results()$guests$is_staying_saturday, na.rm = TRUE),
+        total_sunday_lunch = sum(results()$guests$wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
+        total_sunday_dinner = sum(results()$guests$is_staying_sunday, na.rm = TRUE),
+        total_monday_breakfast = sum(results()$guests$is_staying_sunday, na.rm = TRUE)
+      )
+    }
     
     data.frame(
       Meal = c(
@@ -612,26 +696,63 @@ server <- function(input, output, session) {
     )
   })
   
-  # NEW: Age Category summary table
+  # Age Category summary table - improved to handle missing data
   output$age_category_table <- renderTable({
     req(results())
-    req(results()$age_category_summary)
     
-    results()$age_category_summary %>%
-      select(age_category, total_guests, friday_count, saturday_count, sunday_count) %>%
-      rename(
-        "Age Category" = age_category,
-        "Total Guests" = total_guests,
-        "Friday" = friday_count,
-        "Saturday" = saturday_count,
-        "Sunday" = sunday_count
-      )
+    # Check if age_category_summary exists
+    if (!is.null(results()$age_category_summary)) {
+      results()$age_category_summary %>%
+        select(age_category, total_guests, friday_count, saturday_count, sunday_count) %>%
+        rename(
+          "Age Category" = age_category,
+          "Total Guests" = total_guests,
+          "Friday" = friday_count,
+          "Saturday" = saturday_count,
+          "Sunday" = sunday_count
+        )
+    } else {
+      # Calculate age category summary if missing
+      if ("age_category" %in% names(results()$guests)) {
+        results()$guests %>%
+          group_by(age_category) %>%
+          summarize(
+            `Total Guests` = n(),
+            Friday = sum(is_staying_friday, na.rm = TRUE),
+            Saturday = sum(is_staying_saturday, na.rm = TRUE),
+            Sunday = sum(is_staying_sunday, na.rm = TRUE)
+          ) %>%
+          rename(`Age Category` = age_category)
+      } else {
+        # Return placeholder if no age categories
+        data.frame(
+          `Age Category` = "Adults 21+ Room",
+          `Total Guests` = nrow(results()$guests),
+          Friday = sum(results()$guests$is_staying_friday, na.rm = TRUE),
+          Saturday = sum(results()$guests$is_staying_saturday, na.rm = TRUE),
+          Sunday = sum(results()$guests$is_staying_sunday, na.rm = TRUE)
+        )
+      }
+    }
   })
   
   output$cost_summary_table <- renderTable({
     req(results())
     
-    acc_summary <- results()$accommodation_summary
+    # Extract accommodation summary or calculate if missing
+    if (!is.null(results()$accommodation_summary)) {
+      acc_summary <- results()$accommodation_summary
+    } else {
+      # Calculate from guest data
+      acc_summary <- list(
+        total_friday_cost = sum(results()$guests$friday_cost, na.rm = TRUE),
+        total_saturday_cost = sum(results()$guests$saturday_cost, na.rm = TRUE),
+        total_sunday_cost = sum(results()$guests$sunday_cost, na.rm = TRUE),
+        grand_total_cost = sum(results()$guests$total_cost, na.rm = TRUE),
+        grand_total_guest_charge = sum(results()$guests$total_guest_charge, na.rm = TRUE),
+        grand_total_host_charge = sum(results()$guests$total_host_charge, na.rm = TRUE)
+      )
+    }
     
     data.frame(
       Category = c(
@@ -800,8 +921,12 @@ server <- function(input, output, session) {
   # Accommodations tab outputs
   output$total_staying <- renderValueBox({
     req(results())
-    acc_summary <- results()$accommodation_summary
-    staying_count <- sum(acc_summary$friday_count > 0 | acc_summary$saturday_count > 0 | acc_summary$sunday_count > 0)
+    
+    # Calculate total overnight guests
+    staying_count <- sum(results()$guests$is_staying_friday | 
+                           results()$guests$is_staying_saturday | 
+                           results()$guests$is_staying_sunday, na.rm = TRUE)
+    
     valueBox(
       staying_count,
       "Total Overnight Guests",
@@ -812,8 +937,12 @@ server <- function(input, output, session) {
   
   output$camping_count <- renderValueBox({
     req(results())
+    
+    # Calculate camping count
+    camping_count <- sum(results()$guests$is_camping, na.rm = TRUE)
+    
     valueBox(
-      results()$accommodation_summary$camping_count,
+      camping_count,
       "Camping",
       icon = icon("campground"),
       color = "green"
@@ -822,8 +951,15 @@ server <- function(input, output, session) {
   
   output$lodging_count <- renderValueBox({
     req(results())
+    
+    # Calculate standard lodging count
+    standard_lodging_count <- sum((results()$guests$is_staying_friday | 
+                                     results()$guests$is_staying_saturday | 
+                                     results()$guests$is_staying_sunday) & 
+                                    !results()$guests$is_camping, na.rm = TRUE)
+    
     valueBox(
-      results()$accommodation_summary$standard_lodging_count,
+      standard_lodging_count,
       "Standard Lodging",
       icon = icon("bed"),
       color = "purple"
@@ -832,8 +968,12 @@ server <- function(input, output, session) {
   
   output$nights_booked <- renderValueBox({
     req(results())
-    acc_summary <- results()$accommodation_summary
-    total_nights <- acc_summary$friday_count + acc_summary$saturday_count + acc_summary$sunday_count
+    
+    # Calculate total nights booked
+    total_nights <- sum(results()$guests$is_staying_friday, na.rm = TRUE) + 
+      sum(results()$guests$is_staying_saturday, na.rm = TRUE) + 
+      sum(results()$guests$is_staying_sunday, na.rm = TRUE)
+    
     valueBox(
       total_nights,
       "Total Nights Booked",
@@ -842,44 +982,83 @@ server <- function(input, output, session) {
     )
   })
   
-  # Continued from previous file
+  # Improved age accommodation plot that handles missing data
   output$age_accommodation_plot <- renderPlotly({
     req(results())
-    req(results()$age_category_summary)
     
-    # Prepare data
-    age_data <- results()$age_category_summary %>%
-      select(age_category, total_guests) %>%
-      rename(Category = age_category, Count = total_guests)
-    
-    # Create plot
-    p <- plot_ly(age_data, x = ~Category, y = ~Count, type = 'bar',
-                 marker = list(color = '#5DADE2'))
-    p <- p %>% layout(title = "Accommodation by Age Category",
-                      xaxis = list(title = ""),
-                      yaxis = list(title = "Number of Guests"))
-    p
+    # Check if age_category is in the data
+    if ("age_category" %in% names(results()$guests)) {
+      # Prepare data
+      age_data <- results()$guests %>%
+        filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+        group_by(Category = age_category) %>%
+        summarize(Count = n()) %>%
+        arrange(desc(Count))
+      
+      # Create plot
+      p <- plot_ly(age_data, x = ~Category, y = ~Count, type = 'bar',
+                   marker = list(color = '#5DADE2'))
+      p <- p %>% layout(title = "Accommodation by Age Category",
+                        xaxis = list(title = ""),
+                        yaxis = list(title = "Number of Guests"))
+      p
+    } else {
+      # Create a placeholder plot if no age data
+      plot_ly() %>%
+        layout(
+          title = "Accommodation by Age Category",
+          annotations = list(
+            x = 0.5, y = 0.5, 
+            text = "No age category data available",
+            showarrow = FALSE
+          )
+        )
+    }
   })
   
-  # Accommodation by night with age breakdown
+  # Accommodation by night with age breakdown - improved to handle missing data
   output$night_accommodation_plot <- renderPlotly({
     req(results())
-    req(results()$age_category_summary)
     
-    # Extract data for each night by age category
-    age_night_data <- results()$age_category_summary %>%
-      select(age_category, friday_count, saturday_count, sunday_count) %>%
-      rename(Category = age_category, Friday = friday_count, Saturday = saturday_count, Sunday = sunday_count) %>%
-      pivot_longer(cols = c(Friday, Saturday, Sunday), names_to = "Night", values_to = "Count")
-    
-    # Create plot
-    p <- plot_ly(age_night_data, x = ~Night, y = ~Count, color = ~Category, type = 'bar',
-                 colors = c('#1F77B4', '#FF7F0E', '#2CA02C', '#D62728', '#9467BD'))
-    p <- p %>% layout(title = "Accommodation by Night and Age Category",
-                      xaxis = list(title = ""),
-                      yaxis = list(title = "Number of Guests"),
-                      barmode = 'stack')
-    p
+    # Check if age_category is in the data
+    if ("age_category" %in% names(results()$guests)) {
+      # Extract data for each night by age category
+      age_night_data <- results()$guests %>%
+        filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+        group_by(Category = age_category) %>%
+        summarize(
+          Friday = sum(is_staying_friday, na.rm = TRUE),
+          Saturday = sum(is_staying_saturday, na.rm = TRUE),
+          Sunday = sum(is_staying_sunday, na.rm = TRUE)
+        ) %>%
+        pivot_longer(cols = c(Friday, Saturday, Sunday), names_to = "Night", values_to = "Count")
+      
+      # Create plot
+      p <- plot_ly(age_night_data, x = ~Night, y = ~Count, color = ~Category, type = 'bar',
+                   colors = c('#1F77B4', '#FF7F0E', '#2CA02C', '#D62728', '#9467BD'))
+      p <- p %>% layout(title = "Accommodation by Night and Age Category",
+                        xaxis = list(title = ""),
+                        yaxis = list(title = "Number of Guests"),
+                        barmode = 'stack')
+      p
+    } else {
+      # Create a simpler plot without age breakdown if no age data
+      night_data <- results()$guests %>%
+        filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+        summarize(
+          Friday = sum(is_staying_friday, na.rm = TRUE),
+          Saturday = sum(is_staying_saturday, na.rm = TRUE),
+          Sunday = sum(is_staying_sunday, na.rm = TRUE)
+        ) %>%
+        pivot_longer(cols = everything(), names_to = "Night", values_to = "Count")
+      
+      p <- plot_ly(night_data, x = ~Night, y = ~Count, type = 'bar',
+                   marker = list(color = c('#5DADE2', '#F4D03F', '#58D68D')))
+      p <- p %>% layout(title = "Accommodation by Night",
+                        xaxis = list(title = ""),
+                        yaxis = list(title = "Number of Guests"))
+      p
+    }
   })
   
   output$accommodation_table <- renderDT({
@@ -955,8 +1134,32 @@ server <- function(input, output, session) {
   output$meal_summary_plot <- renderPlotly({
     req(results())
     
-    # Prepare data
-    meal_counts <- results()$meal_counts
+    # Check if meal_counts exists in results
+    if (!is.null(results()$meal_counts)) {
+      meal_counts <- results()$meal_counts
+    } else {
+      # Calculate meal counts from guest data
+      meal_counts <- list(
+        friday_dinner_onsite = sum(results()$guests$is_staying_friday, na.rm = TRUE),
+        saturday_breakfast_onsite = sum(results()$guests$is_staying_friday, na.rm = TRUE),
+        saturday_lunch_onsite = sum(results()$guests$is_staying_saturday, na.rm = TRUE),
+        saturday_dinner_onsite = sum(results()$guests$is_staying_saturday, na.rm = TRUE),
+        sunday_breakfast_onsite = sum(results()$guests$is_staying_saturday, na.rm = TRUE),
+        sunday_dinner_onsite = sum(results()$guests$is_staying_sunday, na.rm = TRUE),
+        monday_breakfast_onsite = sum(results()$guests$is_staying_sunday, na.rm = TRUE),
+        
+        friday_dinner_offsite = sum(results()$guests$fridayshabbat_rsvp == "Joyfully Accept" & 
+                                      !results()$guests$is_staying_friday, na.rm = TRUE),
+        saturday_lunch_offsite = sum(results()$guests$saturday_offsite_rsvp == "Yes, I will join for lunch only" | 
+                                       results()$guests$saturday_offsite_rsvp == "Yes, I will join for lunch and dinner", 
+                                     na.rm = TRUE),
+        saturday_dinner_offsite = sum(results()$guests$saturday_offsite_rsvp == "Yes, I will join for dinner only" | 
+                                        results()$guests$saturday_offsite_rsvp == "Yes, I will join for lunch and dinner", 
+                                      na.rm = TRUE),
+        
+        total_sunday_lunch = sum(results()$guests$wedding_rsvp == "Joyfully Accept", na.rm = TRUE)
+      )
+    }
     
     # Format data for plotting
     meal_data <- data.frame(
@@ -1012,7 +1215,7 @@ server <- function(input, output, session) {
     p
   })
   
-  # Helper function to create meal attendance tables
+  # Helper function to create meal attendance tables with improved handling of vegetarian and special diet flags
   create_meal_table <- function(meal_name, guest_data) {
     # Define the filter condition based on meal name
     filter_condition <- switch(
@@ -1030,7 +1233,21 @@ server <- function(input, output, session) {
     
     # Filter guests based on meal attendance
     meal_guests <- guest_data %>%
-      filter(!!filter_condition) %>%
+      filter(!!filter_condition)
+    
+    # Make sure vegetarian and special diet flags exist
+    if (!"is_vegetarian" %in% names(meal_guests)) {
+      meal_guests <- meal_guests %>%
+        mutate(is_vegetarian = meal_preferences == "No meat" | meal_preferences == "Opt-in for fish only")
+    }
+    
+    if (!"has_special_diet" %in% names(meal_guests)) {
+      meal_guests <- meal_guests %>%
+        mutate(has_special_diet = !is.na(dietary_restrictions) & dietary_restrictions != "")
+    }
+    
+    # Create the display table
+    meal_display <- meal_guests %>%
       select(
         first_name,
         last_name,
@@ -1054,10 +1271,10 @@ server <- function(input, output, session) {
         "Special Diet" = has_special_diet
       )
     
-    return(meal_guests)
+    return(meal_display)
   }
   
-  # Helper function to create meal summary tables
+  # Helper function to create meal summary tables with improved handling of vegetarian and special diet flags
   create_meal_summary <- function(meal_name, guest_data) {
     # Define the filter condition based on meal name
     filter_condition <- switch(
@@ -1077,6 +1294,17 @@ server <- function(input, output, session) {
     meal_guests <- guest_data %>%
       filter(!!filter_condition)
     
+    # Make sure vegetarian and special diet flags exist
+    if (!"is_vegetarian" %in% names(meal_guests)) {
+      meal_guests <- meal_guests %>%
+        mutate(is_vegetarian = meal_preferences == "No meat" | meal_preferences == "Opt-in for fish only")
+    }
+    
+    if (!"has_special_diet" %in% names(meal_guests)) {
+      meal_guests <- meal_guests %>%
+        mutate(has_special_diet = !is.na(dietary_restrictions) & dietary_restrictions != "")
+    }
+    
     # Calculate meal summary statistics
     meal_summary <- meal_guests %>%
       summarize(
@@ -1087,7 +1315,7 @@ server <- function(input, output, session) {
       )
     
     # Calculate by age category if available
-    if ("age_category" %in% names(meal_guests)) {
+    if ("age_category" %in% names(meal_guests) && nrow(meal_guests) > 0) {
       age_summary <- meal_guests %>%
         group_by(Age_Category = age_category) %>%
         summarize(
@@ -1183,10 +1411,9 @@ server <- function(input, output, session) {
     req(results())
     summary_data <- create_meal_summary("friday_dinner", results()$guests)
     
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       plot_data <- summary_data$by_age %>%
-        rename(Category = Age_Category) %>%
-        select(Category, Count, Vegetarian, `Meat/Fish`, `Special Diet`) %>%
+        select(Category = Age_Category, Count, Vegetarian, `Meat/Fish`, `Special Diet`) %>%
         pivot_longer(cols = c(Count, Vegetarian, `Meat/Fish`, `Special Diet`), 
                      names_to = "Metric", values_to = "Value")
       
@@ -1223,7 +1450,7 @@ server <- function(input, output, session) {
   output$saturday_breakfast_summary <- renderTable({
     req(results())
     summary_data <- create_meal_summary("saturday_breakfast", results()$guests)
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       summary_data$by_age
     } else {
       data.frame(
@@ -1239,7 +1466,7 @@ server <- function(input, output, session) {
   output$saturday_lunch_summary <- renderTable({
     req(results())
     summary_data <- create_meal_summary("saturday_lunch", results()$guests)
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       summary_data$by_age
     } else {
       data.frame(
@@ -1255,7 +1482,7 @@ server <- function(input, output, session) {
   output$saturday_dinner_summary <- renderTable({
     req(results())
     summary_data <- create_meal_summary("saturday_dinner", results()$guests)
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       summary_data$by_age
     } else {
       data.frame(
@@ -1271,7 +1498,7 @@ server <- function(input, output, session) {
   output$sunday_breakfast_summary <- renderTable({
     req(results())
     summary_data <- create_meal_summary("sunday_breakfast", results()$guests)
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       summary_data$by_age
     } else {
       data.frame(
@@ -1287,7 +1514,7 @@ server <- function(input, output, session) {
   output$sunday_lunch_summary <- renderTable({
     req(results())
     summary_data <- create_meal_summary("sunday_lunch", results()$guests)
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       summary_data$by_age
     } else {
       data.frame(
@@ -1303,7 +1530,7 @@ server <- function(input, output, session) {
   output$sunday_dinner_summary <- renderTable({
     req(results())
     summary_data <- create_meal_summary("sunday_dinner", results()$guests)
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       summary_data$by_age
     } else {
       data.frame(
@@ -1319,7 +1546,7 @@ server <- function(input, output, session) {
   output$monday_breakfast_summary <- renderTable({
     req(results())
     summary_data <- create_meal_summary("monday_breakfast", results()$guests)
-    if (!is.null(summary_data$by_age)) {
+    if (!is.null(summary_data$by_age) && nrow(summary_data$by_age) > 0) {
       summary_data$by_age
     } else {
       data.frame(
@@ -1418,29 +1645,23 @@ server <- function(input, output, session) {
   output$ifc_roster_table <- renderDT({
     req(results())
     
-    # Check if we have an IFC roster or schedule in the results
-    ifc_data <- if (!is.null(results()$ifc_roster)) {
-      results()$ifc_roster
-    } else if (!is.null(results()$ifc_schedule)) {
-      results()$ifc_schedule
-    } else {
-      # Create a roster from the guest data if none exists
-      results()$guests %>%
-        filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
-        mutate(
-          friday_dinner = is_staying_friday,
-          saturday_breakfast = is_staying_friday,
-          saturday_lunch = is_staying_saturday,
-          saturday_dinner = is_staying_saturday,
-          sunday_breakfast = is_staying_saturday,
-          sunday_lunch = wedding_rsvp == "Joyfully Accept",
-          sunday_dinner = is_staying_sunday,
-          monday_breakfast = is_staying_sunday,
-          accommodation_type = ifelse(is_camping, "Camping", "Standard Lodging")
-        )
-    }
+    # Get guests staying at IFC
+    ifc_data <- results()$guests %>%
+      filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+      mutate(
+        # Ensure meal attendance flags are present
+        friday_dinner = is_staying_friday,
+        saturday_breakfast = is_staying_friday,
+        saturday_lunch = is_staying_saturday,
+        saturday_dinner = is_staying_saturday,
+        sunday_breakfast = is_staying_saturday,
+        sunday_lunch = wedding_rsvp == "Joyfully Accept",
+        sunday_dinner = is_staying_sunday,
+        monday_breakfast = is_staying_sunday,
+        accommodation_type = ifelse(is_camping, "Camping", "Standard Lodging")
+      )
     
-    # Format the roster for display
+    # Format the roster for display - make sure to convert any cost columns to numeric
     roster_display <- ifc_data %>%
       select(
         first_name,
@@ -1458,6 +1679,11 @@ server <- function(input, output, session) {
         total_cost,
         total_guest_charge,
         total_host_charge
+      ) %>%
+      mutate(
+        total_cost = as.numeric(total_cost),
+        total_guest_charge = as.numeric(total_guest_charge),
+        total_host_charge = as.numeric(total_host_charge)
       ) %>%
       rename(
         "First Name" = first_name,
@@ -1491,9 +1717,20 @@ server <- function(input, output, session) {
   output$ifc_costs_summary <- renderTable({
     req(results())
     
-    # Calculate accommodation costs for IFC guests
+    # Extract IFC guests
     ifc_guests <- results()$guests %>%
       filter(is_staying_friday | is_staying_saturday | is_staying_sunday)
+    
+    # Ensure numeric cost fields
+    ifc_guests <- ifc_guests %>%
+      mutate(
+        total_cost = as.numeric(total_cost),
+        total_guest_charge = as.numeric(total_guest_charge),
+        total_host_charge = as.numeric(total_host_charge),
+        friday_cost = as.numeric(friday_cost),
+        saturday_cost = as.numeric(saturday_cost),
+        sunday_cost = as.numeric(sunday_cost)
+      )
     
     # Calculate summary
     cost_summary <- ifc_guests %>%
@@ -1511,13 +1748,24 @@ server <- function(input, output, session) {
     cost_summary
   })
   
-  # Continued from previous file
   output$ifc_meals_summary <- renderTable({
     req(results())
     
-    # Extract meal counts for IFC guests
+    # Extract IFC guests
     ifc_guests <- results()$guests %>%
       filter(is_staying_friday | is_staying_saturday | is_staying_sunday)
+    
+    # Make sure vegetarian flag exists
+    if (!"is_vegetarian" %in% names(ifc_guests)) {
+      ifc_guests <- ifc_guests %>%
+        mutate(is_vegetarian = meal_preferences == "No meat" | meal_preferences == "Opt-in for fish only")
+    }
+    
+    # Make sure special diet flag exists
+    if (!"has_special_diet" %in% names(ifc_guests)) {
+      ifc_guests <- ifc_guests %>%
+        mutate(has_special_diet = !is.na(dietary_restrictions) & dietary_restrictions != "")
+    }
     
     # Calculate meal attendance
     meal_summary <- data.frame(
@@ -1540,12 +1788,8 @@ server <- function(input, output, session) {
         sum(ifc_guests$wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
         sum(ifc_guests$is_staying_sunday, na.rm = TRUE),
         sum(ifc_guests$is_staying_sunday, na.rm = TRUE)
-      )
-    )
-    
-    # Add vegetarian counts if available
-    if ("is_vegetarian" %in% names(ifc_guests)) {
-      meal_summary$Vegetarian <- c(
+      ),
+      Vegetarian = c(
         sum(ifc_guests$is_staying_friday & ifc_guests$is_vegetarian, na.rm = TRUE),
         sum(ifc_guests$is_staying_friday & ifc_guests$is_vegetarian, na.rm = TRUE),
         sum(ifc_guests$is_staying_saturday & ifc_guests$is_vegetarian, na.rm = TRUE),
@@ -1554,12 +1798,8 @@ server <- function(input, output, session) {
         sum(ifc_guests$wedding_rsvp == "Joyfully Accept" & ifc_guests$is_vegetarian, na.rm = TRUE),
         sum(ifc_guests$is_staying_sunday & ifc_guests$is_vegetarian, na.rm = TRUE),
         sum(ifc_guests$is_staying_sunday & ifc_guests$is_vegetarian, na.rm = TRUE)
-      )
-    }
-    
-    # Add special diet counts if available
-    if ("has_special_diet" %in% names(ifc_guests)) {
-      meal_summary$`Special Diet` <- c(
+      ),
+      `Special Diet` = c(
         sum(ifc_guests$is_staying_friday & ifc_guests$has_special_diet, na.rm = TRUE),
         sum(ifc_guests$is_staying_friday & ifc_guests$has_special_diet, na.rm = TRUE),
         sum(ifc_guests$is_staying_saturday & ifc_guests$has_special_diet, na.rm = TRUE),
@@ -1569,7 +1809,7 @@ server <- function(input, output, session) {
         sum(ifc_guests$is_staying_sunday & ifc_guests$has_special_diet, na.rm = TRUE),
         sum(ifc_guests$is_staying_sunday & ifc_guests$has_special_diet, na.rm = TRUE)
       )
-    }
+    )
     
     meal_summary
   })
@@ -1642,6 +1882,20 @@ server <- function(input, output, session) {
     ifc_guests <- results()$guests %>%
       filter(is_staying_friday | is_staying_saturday | is_staying_sunday)
     
+    # Ensure numeric cost fields
+    ifc_guests <- ifc_guests %>%
+      mutate(
+        friday_cost = as.numeric(friday_cost),
+        saturday_cost = as.numeric(saturday_cost),
+        sunday_cost = as.numeric(sunday_cost),
+        friday_guest_charge = as.numeric(friday_guest_charge),
+        saturday_guest_charge = as.numeric(saturday_guest_charge),
+        sunday_guest_charge = as.numeric(sunday_guest_charge),
+        friday_host_charge = as.numeric(friday_host_charge),
+        saturday_host_charge = as.numeric(saturday_host_charge),
+        sunday_host_charge = as.numeric(sunday_host_charge)
+      )
+    
     # Prepare data for visualization
     cost_data <- data.frame(
       category = c("Friday", "Saturday", "Sunday"),
@@ -1683,6 +1937,14 @@ server <- function(input, output, session) {
     # Extract IFC guests
     ifc_guests <- results()$guests %>%
       filter(is_staying_friday | is_staying_saturday | is_staying_sunday)
+    
+    # Ensure numeric cost fields
+    ifc_guests <- ifc_guests %>%
+      mutate(
+        total_cost = as.numeric(total_cost),
+        total_guest_charge = as.numeric(total_guest_charge),
+        total_host_charge = as.numeric(total_host_charge)
+      )
     
     # Calculate financial summary by type
     if ("age_category" %in% names(ifc_guests)) {
@@ -1736,8 +1998,12 @@ server <- function(input, output, session) {
   # Cost Calculator tab outputs
   output$total_cost <- renderValueBox({
     req(results())
+    
+    # Calculate total cost
+    total_cost <- sum(results()$guests$total_cost, na.rm = TRUE)
+    
     valueBox(
-      paste0("$", format(results()$accommodation_summary$grand_total_cost, big.mark = ",")),
+      paste0("$", format(total_cost, big.mark = ",")),
       "Total Accommodation Cost",
       icon = icon("dollar-sign"),
       color = "green"
@@ -1746,8 +2012,12 @@ server <- function(input, output, session) {
   
   output$guest_charge <- renderValueBox({
     req(results())
+    
+    # Calculate total guest charge
+    guest_charge <- sum(results()$guests$total_guest_charge, na.rm = TRUE)
+    
     valueBox(
-      paste0("$", format(results()$accommodation_summary$grand_total_guest_charge, big.mark = ",")),
+      paste0("$", format(guest_charge, big.mark = ",")),
       "Total Guest Charges",
       icon = icon("credit-card"),
       color = "blue"
@@ -1756,8 +2026,12 @@ server <- function(input, output, session) {
   
   output$host_charge <- renderValueBox({
     req(results())
+    
+    # Calculate total host charge
+    host_charge <- sum(results()$guests$total_host_charge, na.rm = TRUE)
+    
     valueBox(
-      paste0("$", format(results()$accommodation_summary$grand_total_host_charge, big.mark = ",")),
+      paste0("$", format(host_charge, big.mark = ",")),
       "Total Host Charges",
       icon = icon("hand-holding-usd"),
       color = "red"
@@ -1767,28 +2041,37 @@ server <- function(input, output, session) {
   output$cost_breakdown <- renderPlotly({
     req(results())
     
-    # Prepare data
-    cost_data <- data.frame(
+    # Calculate total costs by night
+    cost_data <- results()$guests %>%
+      summarize(
+        friday_cost = sum(friday_cost, na.rm = TRUE),
+        friday_guest_charge = sum(friday_guest_charge, na.rm = TRUE),
+        friday_host_charge = sum(friday_host_charge, na.rm = TRUE),
+        saturday_cost = sum(saturday_cost, na.rm = TRUE),
+        saturday_guest_charge = sum(saturday_guest_charge, na.rm = TRUE),
+        saturday_host_charge = sum(saturday_host_charge, na.rm = TRUE),
+        sunday_cost = sum(sunday_cost, na.rm = TRUE),
+        sunday_guest_charge = sum(sunday_guest_charge, na.rm = TRUE),
+        sunday_host_charge = sum(sunday_host_charge, na.rm = TRUE)
+      )
+    
+    # Format for plotting
+    plot_data <- data.frame(
       category = c("Friday", "Saturday", "Sunday"),
-      cost = c(
-        results()$accommodation_summary$total_friday_cost,
-        results()$accommodation_summary$total_saturday_cost,
-        results()$accommodation_summary$total_sunday_cost
-      ),
       guest_charge = c(
-        results()$accommodation_summary$total_friday_guest_charge,
-        results()$accommodation_summary$total_saturday_guest_charge,
-        results()$accommodation_summary$total_sunday_guest_charge
+        cost_data$friday_guest_charge,
+        cost_data$saturday_guest_charge,
+        cost_data$sunday_guest_charge
       ),
       host_charge = c(
-        results()$accommodation_summary$total_friday_host_charge,
-        results()$accommodation_summary$total_saturday_host_charge,
-        results()$accommodation_summary$total_sunday_host_charge
+        cost_data$friday_host_charge,
+        cost_data$saturday_host_charge,
+        cost_data$sunday_host_charge
       )
     )
     
     # Convert to long format for grouped bar chart
-    cost_long <- cost_data %>%
+    cost_long <- plot_data %>%
       pivot_longer(cols = c("guest_charge", "host_charge"), 
                    names_to = "charge_type", values_to = "amount") %>%
       mutate(charge_type = ifelse(charge_type == "guest_charge", "Guest Charge", "Host Charge"))
@@ -1805,31 +2088,63 @@ server <- function(input, output, session) {
   
   output$age_cost_breakdown <- renderPlotly({
     req(results())
-    req(results()$age_category_summary)
     
-    # Prepare data
-    age_cost_data <- results()$age_category_summary %>%
-      select(age_category, total_guest_charge, total_host_charge) %>%
-      rename(Category = age_category, `Guest Charge` = total_guest_charge, `Host Charge` = total_host_charge) %>%
-      pivot_longer(cols = c(`Guest Charge`, `Host Charge`), 
-                   names_to = "Charge_Type", values_to = "Amount")
-    
-    # Create plot
-    p <- plot_ly(age_cost_data, x = ~Category, y = ~Amount, color = ~Charge_Type, type = 'bar',
-                 colors = c("Guest Charge" = "#3498DB", "Host Charge" = "#E74C3C"))
-    p <- p %>% layout(title = "Cost Breakdown by Age Category",
-                      xaxis = list(title = ""),
-                      yaxis = list(title = "Amount ($)"),
-                      barmode = 'group')
-    p
+    # Check if age_category is in the data
+    if ("age_category" %in% names(results()$guests)) {
+      # Prepare data for age category cost breakdown
+      age_cost_data <- results()$guests %>%
+        group_by(Category = age_category) %>%
+        summarize(
+          `Guest Charge` = sum(total_guest_charge, na.rm = TRUE),
+          `Host Charge` = sum(total_host_charge, na.rm = TRUE)
+        ) %>%
+        pivot_longer(cols = c(`Guest Charge`, `Host Charge`), 
+                     names_to = "Charge_Type", values_to = "Amount")
+      
+      # Create plot
+      p <- plot_ly(age_cost_data, x = ~Category, y = ~Amount, color = ~Charge_Type, type = 'bar',
+                   colors = c("Guest Charge" = "#3498DB", "Host Charge" = "#E74C3C"))
+      p <- p %>% layout(title = "Cost Breakdown by Age Category",
+                        xaxis = list(title = ""),
+                        yaxis = list(title = "Amount ($)"),
+                        barmode = 'group')
+      p
+    } else {
+      # Create a placeholder if no age categories available
+      plot_ly() %>%
+        layout(
+          title = "Cost Breakdown by Age Category",
+          annotations = list(
+            x = 0.5, y = 0.5, 
+            text = "No age category data available",
+            showarrow = FALSE
+          )
+        )
+    }
   })
   
   output$guest_costs_table <- renderDT({
     req(results())
     
     # Create a cleaner display for the costs table
-    costs_display <- results()$guest_costs %>%
-      filter(total_cost > 0) %>% # Only show guests with costs
+    costs_display <- results()$guests %>%
+      filter(as.numeric(total_cost) > 0) %>% # Only show guests with costs
+      mutate(
+        # Ensure numeric cost fields
+        friday_cost = as.numeric(friday_cost),
+        saturday_cost = as.numeric(saturday_cost),
+        sunday_cost = as.numeric(sunday_cost),
+        total_cost = as.numeric(total_cost),
+        total_guest_charge = as.numeric(total_guest_charge),
+        total_host_charge = as.numeric(total_host_charge),
+        # Format for display
+        friday_cost = paste0("$", friday_cost),
+        saturday_cost = paste0("$", saturday_cost),
+        sunday_cost = paste0("$", sunday_cost),
+        total_cost = paste0("$", total_cost),
+        total_guest_charge = paste0("$", total_guest_charge),
+        total_host_charge = paste0("$", total_host_charge)
+      ) %>%
       select(
         first_name,
         last_name,
@@ -1844,14 +2159,6 @@ server <- function(input, output, session) {
         total_cost,
         total_guest_charge,
         total_host_charge
-      ) %>%
-      mutate(
-        friday_cost = paste0("$", friday_cost),
-        saturday_cost = paste0("$", saturday_cost),
-        sunday_cost = paste0("$", sunday_cost),
-        total_cost = paste0("$", total_cost),
-        total_guest_charge = paste0("$", total_guest_charge),
-        total_host_charge = paste0("$", total_host_charge)
       ) %>%
       rename(
         "First Name" = first_name,
@@ -1909,27 +2216,21 @@ server <- function(input, output, session) {
       paste("ifc-roster-", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      # Check if we have an IFC roster or schedule in the results
-      ifc_data <- if (!is.null(results()$ifc_roster)) {
-        results()$ifc_roster
-      } else if (!is.null(results()$ifc_schedule)) {
-        results()$ifc_schedule
-      } else {
-        # Create a roster from the guest data if none exists
-        results()$guests %>%
-          filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
-          mutate(
-            friday_dinner = is_staying_friday,
-            saturday_breakfast = is_staying_friday,
-            saturday_lunch = is_staying_saturday,
-            saturday_dinner = is_staying_saturday,
-            sunday_breakfast = is_staying_saturday,
-            sunday_lunch = wedding_rsvp == "Joyfully Accept",
-            sunday_dinner = is_staying_sunday,
-            monday_breakfast = is_staying_sunday,
-            accommodation_type = ifelse(is_camping, "Camping", "Standard Lodging")
-          )
-      }
+      # Get guests staying at IFC
+      ifc_data <- results()$guests %>%
+        filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+        mutate(
+          # Add meal attendance flags
+          friday_dinner = is_staying_friday,
+          saturday_breakfast = is_staying_friday,
+          saturday_lunch = is_staying_saturday,
+          saturday_dinner = is_staying_saturday,
+          sunday_breakfast = is_staying_saturday,
+          sunday_lunch = wedding_rsvp == "Joyfully Accept",
+          sunday_dinner = is_staying_sunday,
+          monday_breakfast = is_staying_sunday,
+          accommodation_type = ifelse(is_camping, "Camping", "Standard Lodging")
+        )
       
       write.csv(ifc_data, file, row.names = FALSE)
     }
@@ -1941,14 +2242,24 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       # Only include guests with costs
-      cost_data <- results()$guest_costs %>%
-        filter(total_cost > 0) %>%
+      cost_data <- results()$guests %>%
+        filter(as.numeric(total_cost) > 0) %>%
+        mutate(
+          # Ensure numeric cost fields
+          friday_cost = as.numeric(friday_cost),
+          saturday_cost = as.numeric(saturday_cost),
+          sunday_cost = as.numeric(sunday_cost),
+          total_cost = as.numeric(total_cost),
+          total_guest_charge = as.numeric(total_guest_charge),
+          total_host_charge = as.numeric(total_host_charge)
+        ) %>%
         select(
           first_name, last_name, age_category, party,
           is_staying_friday, is_staying_saturday, is_staying_sunday,
           is_camping, friday_cost, saturday_cost, sunday_cost,
           total_cost, total_guest_charge, total_host_charge
         )
+      
       write.csv(cost_data, file, row.names = FALSE)
     }
   )
@@ -1967,18 +2278,38 @@ server <- function(input, output, session) {
       dir.create(report_dir, showWarnings = FALSE, recursive = TRUE)
       
       # Export reports to the temporary directory
-      export_reports(results(), report_dir)
+      tryCatch({
+        # Load function from the wedding-rsvp-tracker.R file
+        if (exists("export_reports")) {
+          export_reports(results(), report_dir)
+        } else {
+          # Create basic reports if export_reports function not available
+          write.csv(results()$party_summary, file.path(report_dir, "party_summary.csv"))
+          
+          # Export guest costs
+          if (!is.null(results()$guest_costs)) {
+            write.csv(results()$guest_costs, file.path(report_dir, "guest_accommodation_costs.csv"))
+          }
+          
+          # Export accommodation summary
+          if (!is.null(results()$accommodation_summary)) {
+            write.csv(as.data.frame(results()$accommodation_summary), 
+                      file.path(report_dir, "accommodation_summary.csv"))
+          }
+          
+          # Export age category summary if available
+          if (!is.null(results()$age_category_summary)) {
+            write.csv(results()$age_category_summary, 
+                      file.path(report_dir, "age_category_summary.csv"))
+          }
+        }
+      }, error = function(e) {
+        # Write error information to a log file
+        writeLines(paste("Error exporting reports:", conditionMessage(e)),
+                   file.path(report_dir, "export_error_log.txt"))
+      })
       
-      # Generate meal planning report
-      generate_meal_planning_report(results(), file.path(report_dir, "meal_planning_report.csv"))
-      
-      # Generate IFC report
-      generate_ifc_report(results(), file.path(report_dir, "ifc_report.csv"))
-      
-      # Also generate the simplified IFC summary
-      generate_ifc_summary(results(), file.path(report_dir, "ifc_summary.csv"))
-      
-      # Create a zip file using zip package if available
+      # Create a zip file
       zip_file <- file.path(temp_dir, "wedding_reports.zip")
       
       tryCatch({
