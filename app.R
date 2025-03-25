@@ -388,6 +388,42 @@ server <- function(input, output, session) {
     }
   }
   
+  # Add debugging code to check age categories and camping status
+  observe({
+    req(processed_data())
+    
+    # Output information to the console for debugging
+    cat("\n===== DEBUGGING AGE CATEGORIES =====\n")
+    
+    # Check if age_category column exists
+    if ("age_category" %in% names(processed_data()$guests)) {
+      cat("Age categories found in guest data:\n")
+      print(table(processed_data()$guests$age_category))
+      
+      # Check for camping guests with age categories
+      if ("is_camping" %in% names(processed_data()$guests)) {
+        camping_guests <- processed_data()$guests %>% 
+          filter(is_camping) %>% 
+          select(first_name, last_name, age_category)
+        
+        cat("\nCamping guests with age categories:\n")
+        if (nrow(camping_guests) > 0) {
+          print(camping_guests)
+        } else {
+          cat("No camping guests found.\n")
+        }
+      }
+      
+      # Check age category assignment from the Budget Invite List
+      cat("\nSummary of guest counts by age category:\n")
+      print(processed_data()$age_category_summary)
+    } else {
+      cat("No age_category column found in processed_data()$guests\n")
+    }
+    
+    cat("\n===== END DEBUGGING =====\n")
+  })
+  
   # Process data once when file is uploaded
   observeEvent(input$guestlist, {
     req(input$guestlist)

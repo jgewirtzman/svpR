@@ -140,9 +140,20 @@ assign_age_categories <- function(guests, age_data_path = "Wedding Budget Invite
     
     # Extract name and age information
     if (all(c("first_name", "last_name", "age") %in% names(age_data))) {
+      # Clean the first_name and last_name columns in both datasets to improve matching
       age_info <- age_data %>%
         select(first_name, last_name, age) %>%
-        filter(!is.na(first_name) & !is.na(last_name))
+        filter(!is.na(first_name) & !is.na(last_name)) %>%
+        mutate(
+          first_name = trimws(first_name),
+          last_name = trimws(last_name)
+        )
+      
+      guests <- guests %>%
+        mutate(
+          first_name = trimws(first_name),
+          last_name = trimws(last_name)
+        )
       
       # Map age categories to our defined categories
       age_info <- age_info %>%
@@ -161,7 +172,13 @@ assign_age_categories <- function(guests, age_data_path = "Wedding Budget Invite
         left_join(age_info %>% select(first_name, last_name, age_category),
                   by = c("first_name", "last_name"))
       
-      # Fill in missing age categories
+      # Fill in missing age categories and log the unmatched guests
+      unmatched <- guests %>% filter(is.na(age_category))
+      if(nrow(unmatched) > 0) {
+        cat("Could not match age categories for", nrow(unmatched), "guests:\n")
+        print(unmatched %>% select(first_name, last_name))
+      }
+      
       guests <- guests %>%
         mutate(
           age_category = ifelse(is.na(age_category), "Adults 21+ Room", age_category)
@@ -179,8 +196,7 @@ assign_age_categories <- function(guests, age_data_path = "Wedding Budget Invite
     warning("No age data file provided. All guests categorized as adults by default.")
   }
   
-  # Update camping adults
-  # Check if is_camping column exists (should be created by calculate_accommodation_costs)
+  # Update camping adults AFTER age categories are assigned
   if ("is_camping" %in% names(guests)) {
     guests <- guests %>%
       mutate(
@@ -232,6 +248,7 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
   possible_camping_cols <- c("lodgingcamping_weekend", "lodgingcamping_sat_only")
   
   # Process stay data
+  # Process stay data
   guests <- guests %>%
     mutate(
       # Determine if staying each night
@@ -250,11 +267,16 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
                                          .names = "col_{.col}"),
                                   na.rm = TRUE) > 0,
       
-      is_camping = rowSums(across(any_of(possible_camping_cols),
-                                  ~ . == "Camping",
-                                  .names = "col_{.col}"),
-                           na.rm = TRUE) > 0
+      # Ensure camping is properly detected and is a logical value
+      is_camping = as.logical(rowSums(across(any_of(possible_camping_cols),
+                                             ~ . == "Camping",
+                                             .names = "col_{.col}"),
+                                      na.rm = TRUE) > 0)
     )
+  
+  # Print summary of camping status
+  cat("Camping status summary:\n")
+  cat("Number of camping guests:", sum(guests$is_camping, na.rm = TRUE), "\n")
   
   # Assign age categories
   guests <- assign_age_categories(guests, age_data_path)
