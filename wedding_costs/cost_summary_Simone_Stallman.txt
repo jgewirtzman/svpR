@@ -1,0 +1,20 @@
+Party: Simone Stallman
+Guests: Simone Stallman
+Email: simone.stallman@adamah.org
+Total Guests: 1
+Total Guest Charge: $172
+
+Accommodation Summary:
+- Saturday night: 1 guests ($172)
+- Standard lodging: 1 guests
+
+Guest Charge Breakdown:
+- Saturday: $172
+
+Individual Guest Details:
+1. Simone Stallman
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
+

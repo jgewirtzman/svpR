@@ -316,10 +316,24 @@ preprocess_guest_data <- function(guests) {
   return(guests)
 }
 
-# Modified workflow to address issues
+# In wedding-rsvp-workflow.R
 run_fixed_workflow <- function() {
   # Print working directory for debugging
   cat("Current working directory:", normalizePath(getwd()), "\n")
+  
+  # Make sure required files exist
+  required_files <- c("rates.R", "helpers.R", "wedding-rsvp-tracker.R")
+  for (file in required_files) {
+    if (!file.exists(file)) {
+      stop("Required file not found: ", file)
+    }
+  }
+  
+  # Source required functions
+  source("rates.R")
+  source("helpers.R")
+  source("wedding-rsvp-tracker.R")
+  source("cost-summary-generator.R")
   
   # File path to your guest list CSV
   guest_list_file <- "guestlist.csv"
@@ -329,27 +343,17 @@ run_fixed_workflow <- function() {
     stop("Guest list file not found: ", guest_list_file)
   }
   
-  # SIMPLIFIED DIRECTORY HANDLING - Using absolute paths
+  # Setup directories
   reports_dir <- file.path(getwd(), "wedding_reports")
   costs_dir <- file.path(getwd(), "wedding_costs")
   emails_dir <- file.path(getwd(), "wedding_emails")
   
-  # First remove any existing directories to avoid confusion
-  unlink(reports_dir, recursive = TRUE)
-  unlink(costs_dir, recursive = TRUE)
-  unlink(emails_dir, recursive = TRUE)
+  # Create directories
+  for (dir in c(reports_dir, costs_dir, emails_dir)) {
+    dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  }
   
-  # Then create fresh directories
-  dir.create(reports_dir, recursive = TRUE, showWarnings = FALSE)
-  dir.create(costs_dir, recursive = TRUE, showWarnings = FALSE)
-  dir.create(emails_dir, recursive = TRUE, showWarnings = FALSE)
-  
-  cat("Created fresh directories for wedding reports\n")
-  
-  # Now source the main RSVP tracking scripts
-  source("wedding-rsvp-tracker.R")
-  source("cost-summary-generator.R")
-  source("generate-ifc-report.R")
+  cat("Created directories for wedding reports\n")
   
   # Step 1: Read and preprocess guest data
   cat("\n*** Step 1: Reading and preprocessing guest data... ***\n")
@@ -357,58 +361,24 @@ run_fixed_workflow <- function() {
                          col_types = cols(.default = col_character()),
                          na = c("", "NA", "N/A"))
   
-  # Clean the guest data
-  clean_guest_data <- preprocess_guest_data(guest_data)
+  # Load rates once
+  rates_data <- load_rates("charge_rates.csv")
   
-  # Save cleaned guest data
-  clean_guest_file <- file.path(reports_dir, "clean_guestlist.csv")
-  write_csv(clean_guest_data, clean_guest_file)
+  # Step 2: Generate reports with processed data
+  cat("\n*** Step 2: Generating RSVP reports... ***\n")
+  results <- generate_wedding_reports(guest_list_file)
   
-  # Step 2: Generate basic reports with clean data
-  cat("\n*** Step 2: Generating basic RSVP reports... ***\n")
-  results <- generate_wedding_reports(clean_guest_file)
-  
-  # Step 3: Export reports to CSV files
+  # Step 3: Export reports using the pre-calculated data
   cat("\n*** Step 3: Exporting reports to CSV... ***\n")
   export_reports(results, reports_dir)
   
-  # Step 4: Generate cost summaries and PDFs
+  # Step 4: Generate cost summaries and PDFs using pre-calculated data
   cat("\n*** Step 4: Generating cost summaries and PDFs... ***\n")
+  generate_cost_pdfs(results, costs_dir)
   
-  # Check if the costs directory exists before running cost summary
-  if (!dir.exists(costs_dir)) {
-    cat("WARNING: Costs directory doesn't exist. Creating it now.\n")
-    dir.create(costs_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-  
-  cost_results <- run_cost_summary(clean_guest_file)
-  
-  # Step 5: Generate IFC report
-  cat("\n*** Step 5: Generating Isabella Freedman Center report... ***\n")
-  ifc_report_path <- file.path(reports_dir, "ifc_guest_report")
-  
-  # Always generate CSV version first
-  ifc_csv_report <- generate_ifc_report(results, paste0(ifc_report_path, ".csv"))
-  
-  # Only attempt PDF if dependencies are available
-  if (check_pdf_dependencies()) {
-    tryCatch({
-      ifc_pdf_report <- generate_ifc_report(results, paste0(ifc_report_path, ".pdf"))
-    }, error = function(e) {
-      cat("Error generating IFC PDF report:", conditionMessage(e), "\n")
-      cat("Using CSV reports instead.\n")
-    })
-  }
-  
-  # Step 6: Generate meal planning summary report
-  cat("\n*** Step 6: Generating detailed meal planning report... ***\n")
-  meal_planning_path <- file.path(reports_dir, "meal_planning_report")
-  meal_planning_report <- generate_meal_planning_report(results, paste0(meal_planning_path, ".pdf"))
-  
-  # Step 7: Launch the dashboard (comment out if not needed)
-  cat("\n*** Step 7: Launching the dashboard... ***\n")
-  # This will launch the dashboard. Comment out if you don't want to run it immediately
-  shiny::runApp("app.R")
+  # Step 5: Generate simplified emails with pre-calculated data
+  cat("\n*** Step 5: Generating email templates... ***\n")
+  generate_simplified_emails(results, emails_dir)
   
   cat("\n*** Wedding RSVP analysis complete! ***\n")
   cat("\nReports can be found in:\n")
@@ -421,3 +391,5 @@ run_fixed_workflow <- function() {
 
 # Run the fixed workflow
 run_fixed_workflow()
+
+runApp("app.R")

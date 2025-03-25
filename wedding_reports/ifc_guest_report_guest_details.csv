@@ -1,0 +1,31 @@
+Last_Name,First_Name,Age_Category,Friday_Night,Saturday_Night,Sunday_Night,Accommodation_Type,Friday_Dinner,Saturday_Breakfast,Saturday_Lunch,Saturday_Dinner,Sunday_Breakfast,Sunday_Lunch,Sunday_Dinner,Monday_Breakfast,Meal_Preference,Dietary_Restrictions,Vegetarian,Special_Diet,Friday_Cost,Saturday_Cost,Sunday_Cost,Total_IFC_Cost,Friday_Guest_Charge,Saturday_Guest_Charge,Sunday_Guest_Charge,Total_Guest_Charge,Friday_Host_Charge,Saturday_Host_Charge,Sunday_Host_Charge,Total_Host_Charge
+Averbach,Abbie,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for fish only,NA,Yes,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Chandaprong,Anne,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,None,No,Yes,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Cohen,Don,Adults 21+ Room,Yes,Yes,No,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,NA,No,No,247.5,247.5,0,495,108,172,0,280,139.5,75.5,0,215
+Cohen,Hanna,Adults 21+ Room,Yes,Yes,No,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,"no dairy, limited gluten (but I am ridiculous so no stress)",No,Yes,247.5,247.5,0,495,108,172,0,280,139.5,75.5,0,215
+Cullen,Jenni,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for chicken only,NA,No,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Cunningham,Nick,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken only,NA,No,No,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Dillon,Ava,Guests 12-21 Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,no restrictions,No,Yes,0,0,0,0,0,0,0,0,0,0,0,0
+Dillon,Lauren,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,no restrictions,No,Yes,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Dillon,Michael,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,no restrictions,No,Yes,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Dillon,Owen,Guests 12-21 Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken only,"no restrictions, just don't love fish",No,Yes,0,0,0,0,0,0,0,0,0,0,0,0
+Dumbroff,Matt,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,None,No,Yes,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Dumbroff,Max,Guests 12-21 Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,None,No,Yes,0,0,0,0,0,0,0,0,0,0,0,0
+Dumbroff,Mila,Guests 12-21 Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,None,No,Yes,0,0,0,0,0,0,0,0,0,0,0,0
+Eltinge,Sarah,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,No meat,NA,Yes,No,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Fisher,Gail,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for chicken and fish,NA,No,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Fisher,Quentin,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for chicken and fish,NA,No,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Forbes,Elizabeth,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for fish only,NA,Yes,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Lewinson,Betsy,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for chicken and fish,NA,No,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Lienau,Janey,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,NA,No,No,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Merenstein,Carter,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No meat,I'm gluten freeeeeeeeeeee! (Celiac),Yes,Yes,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Obstfeld,Clara,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,None!,No,Yes,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Phillips,Max,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,NA,No,No,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Rais,Griffin,Guests 12-21 Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken only,Chicken nuggets/fingers and fries are the usual stand-in.  Just to make sure Griffin eats something.,No,Yes,0,0,0,0,0,0,0,0,0,0,0,0
+Rais,Michael,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,NA,No,No,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Rais,Monika,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,NA,No,No,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Stallman,Simone,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,No meat,test test,Yes,Yes,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5
+Thibodeau,Danny,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for fish only,NA,Yes,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Thibodeau,Marc,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for chicken and fish,NA,No,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+Thibodeau,Tina,Adults 21+ Room,Yes,Yes,Yes,Standard Lodging,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Opt-in for chicken only,NA,No,No,247.5,247.5,119.9,614.9,108,172,18,298,139.5,75.5,101.9,316.9
+rais,ettie,Adults 21+ Room,No,Yes,No,Standard Lodging,No,No,Yes,Yes,Yes,Yes,No,No,Opt-in for chicken and fish,no restrictions,No,Yes,0,247.5,0,247.5,0,172,0,172,0,75.5,0,75.5

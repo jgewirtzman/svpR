@@ -1,0 +1,20 @@
+Party: ettie rais
+Guests: ettie rais
+Email: ettie.rais@gmail.com
+Total Guests: 1
+Total Guest Charge: $172
+
+Accommodation Summary:
+- Saturday night: 1 guests ($172)
+- Standard lodging: 1 guests
+
+Guest Charge Breakdown:
+- Saturday: $172
+
+Individual Guest Details:
+1. ettie rais
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
+

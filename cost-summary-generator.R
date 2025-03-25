@@ -10,29 +10,16 @@ library(knitr)
 library(rmarkdown)
 
 # Function to generate a cost summary for each party
+# In cost-summary-generator.R
 generate_cost_summary <- function(results) {
-  # Extract party list and guest costs
+  # Use pre-calculated data from results
   party_summary <- results$party_summary
-  guests <- results$guest_costs
+  guests <- results$guest_costs  # Use already calculated costs
   
-  # Ensure guests have total_guest_charge column
-  if (!"total_guest_charge" %in% names(guests)) {
-    cat("Warning: total_guest_charge column not found in guest data. Adding default values.\n")
-    guests$total_guest_charge <- 0
-  }
+  # Ensure costs are numeric
+  guests <- ensure_numeric_costs(guests)
   
-  # Define cost constants for reference
-  costs <- list(
-    saturday_housing = 136,
-    saturday_meals = 36,
-    saturday_camping = 54,
-    friday_housing = 72,
-    friday_meals = 36,
-    friday_camping = 36,
-    sunday_meals = 18
-  )
-  
-  # Create a cost breakdown by party with more details
+  # Create party-level cost summary
   party_costs <- guests %>%
     group_by(party) %>%
     summarize(
@@ -46,30 +33,22 @@ generate_cost_summary <- function(results) {
       camping = sum(is_camping, na.rm = TRUE),
       standard_lodging = sum((is_staying_friday | is_staying_saturday) & !is_camping, na.rm = TRUE),
       
-      # Cost breakdowns by category - with safeguards for missing values
+      # Cost totals - use pre-calculated values
       total_friday_cost = sum(friday_cost, na.rm = TRUE),
       total_saturday_cost = sum(saturday_cost, na.rm = TRUE),
       total_sunday_cost = sum(sunday_cost, na.rm = TRUE),
       
-      # Guest charges - with safeguards for missing values
-      total_friday_guest_charge = if ("friday_guest_charge" %in% names(guests)) 
-        sum(friday_guest_charge, na.rm = TRUE) else 0,
-      total_saturday_guest_charge = if ("saturday_guest_charge" %in% names(guests)) 
-        sum(saturday_guest_charge, na.rm = TRUE) else 0,
-      total_sunday_guest_charge = if ("sunday_guest_charge" %in% names(guests)) 
-        sum(sunday_guest_charge, na.rm = TRUE) else 0,
-      grand_total_guest_charge = if ("total_guest_charge" %in% names(guests)) 
-        sum(total_guest_charge, na.rm = TRUE) else 0,
+      # Guest charges
+      total_friday_guest_charge = sum(friday_guest_charge, na.rm = TRUE),
+      total_saturday_guest_charge = sum(saturday_guest_charge, na.rm = TRUE),
+      total_sunday_guest_charge = sum(sunday_guest_charge, na.rm = TRUE),
+      grand_total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
       
-      # Host charges - with safeguards for missing values
-      total_friday_host_charge = if ("friday_host_charge" %in% names(guests)) 
-        sum(friday_host_charge, na.rm = TRUE) else 0,
-      total_saturday_host_charge = if ("saturday_host_charge" %in% names(guests)) 
-        sum(saturday_host_charge, na.rm = TRUE) else 0,
-      total_sunday_host_charge = if ("sunday_host_charge" %in% names(guests))
-        sum(sunday_host_charge, na.rm = TRUE) else 0,
-      grand_total_host_charge = if ("total_host_charge" %in% names(guests))
-        sum(total_host_charge, na.rm = TRUE) else 0
+      # Host charges
+      total_friday_host_charge = sum(friday_host_charge, na.rm = TRUE),
+      total_saturday_host_charge = sum(saturday_host_charge, na.rm = TRUE),
+      total_sunday_host_charge = sum(sunday_host_charge, na.rm = TRUE),
+      grand_total_host_charge = sum(total_host_charge, na.rm = TRUE)
     ) %>%
     # Join with party_summary to get email and party name
     left_join(party_summary %>% select(party, party_name, party_email, guest_names), by = "party")

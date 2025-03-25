@@ -1,0 +1,21 @@
+WEDDING COST SUMMARY
+Wedding: Cyrena & Jon - June 20-23, 2025
+Generated: March 23, 2025
+
+Total Parties with Charges: 15
+Total Guest Charges: $5,596
+Total Host Charges: $3,561.5
+
+Cost breakdown by night:
+- Friday: $2,970
+  - Guest charges: $1,296
+  - Host charges: $1,674
+- Saturday: $6,187.5
+  - Guest charges: $4,300
+  - Host charges: $1,887.5
+- Sunday: $0
+  - Guest charges: $0
+  - Host charges: $0
+
+Cost summaries and invoices have been generated in the directory: /Users/jongewirtzman/Downloads/svpR/wedding_costs
+

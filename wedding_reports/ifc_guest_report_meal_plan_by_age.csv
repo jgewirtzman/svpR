@@ -1,0 +1,14 @@
+meal,age_category,count,veg_count,meat_fish_count,special_diet_count
+Friday Dinner,Adults 21+ Room,15,4,11,2
+Saturday Breakfast,Adults 21+ Room,12,4,8,2
+Saturday Lunch,Adults 21+ Room,31,7,24,9
+Saturday Lunch,Guests 12-21 Room,5,0,5,5
+Saturday Dinner,Adults 21+ Room,31,7,24,9
+Saturday Dinner,Guests 12-21 Room,5,0,5,5
+Sunday Breakfast,Adults 21+ Room,25,6,19,9
+Sunday Breakfast,Guests 12-21 Room,5,0,5,5
+Sunday Lunch (Wedding),Adults 21+ Room,40,11,29,9
+Sunday Lunch (Wedding),Children <5 Room,1,0,1,0
+Sunday Lunch (Wedding),Guests 12-21 Room,5,0,5,5
+Sunday Dinner,Adults 21+ Room,10,4,6,1
+Monday Breakfast,Adults 21+ Room,10,4,6,1

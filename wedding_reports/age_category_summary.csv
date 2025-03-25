@@ -1,0 +1,5 @@
+age_category,total_cost,total_guest_charge,total_host_charge,friday_cost,saturday_cost,sunday_cost
+Adults 21+ Room,9157.5,5596,3561.5,2970,6187.5,0
+Children 5-12 Room,0,0,0,0,0,0
+Children <5 Room,0,0,0,0,0,0
+Guests 12-21 Room,0,0,0,0,0,0

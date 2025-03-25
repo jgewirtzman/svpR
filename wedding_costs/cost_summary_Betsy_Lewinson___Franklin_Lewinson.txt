@@ -1,0 +1,30 @@
+Party: Betsy Lewinson & Franklin Lewinson
+Guests: Betsy Lewinson, Franklin Lewinson
+Email: No email provided
+Total Guests: 2
+Total Guest Charge: $280
+
+Accommodation Summary:
+- Friday night: 1 guests ($108)
+- Saturday night: 1 guests ($172)
+- Sunday night: 1 guests ($0)
+- Standard lodging: 1 guests
+
+Guest Charge Breakdown:
+- Friday: $108
+- Saturday: $172
+- Sunday: $0
+
+Individual Guest Details:
+1. Betsy Lewinson
+   - Staying: Friday, Saturday, Sunday
+   - Accommodation Type: Standard Lodging
+   - Friday Guest Charge: $108
+   - Saturday Guest Charge: $172
+   - Sunday Guest Charge: $0
+   - Total Guest Charge: $280
+
+2. Franklin Lewinson
+   - Staying: Not staying overnight
+   - Accommodation Type: Not staying overnight
+
