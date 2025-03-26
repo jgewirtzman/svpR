@@ -14,6 +14,266 @@ library(stringr)
 library(knitr)
 library(rmarkdown)
 
+# Add this function after your library statements but before the server function
+fix_age_category_summary <- function(data) {
+  # Only process if we have guest_costs data
+  if (is.null(data) || is.null(data$guest_costs)) {
+    return(data)
+  }
+  
+  # Create or update age_category_summary with the missing columns
+  age_counts <- data$guest_costs %>%
+    group_by(age_category) %>%
+    summarize(
+      total_guests = n(),
+      friday_count = sum(is_staying_friday, na.rm = TRUE),
+      saturday_count = sum(is_staying_saturday, na.rm = TRUE),
+      sunday_count = sum(is_staying_sunday, na.rm = TRUE)
+    )
+  
+  # If age_category_summary already exists, merge in the new columns
+  if (!is.null(data$age_category_summary)) {
+    # Join with existing age_category_summary to keep cost data
+    data$age_category_summary <- data$age_category_summary %>%
+      left_join(age_counts, by = "age_category")
+  } else {
+    # Just use the counts we calculated
+    data$age_category_summary <- age_counts
+  }
+  
+  return(data)
+}
+
+# Add this observer near the top of your server function
+# after the processed_data reactive is defined
+observe({
+  req(processed_data())
+  
+  # Apply our fixes
+  updated_data <- fix_age_category_summary(processed_data())
+  
+  # Update the processed data
+  processed_data(updated_data)
+})
+
+
+# Function to inspect the data structure and report issues
+diagnose_data_structure <- function(data) {
+  # Create a text buffer for all diagnostic messages
+  log <- character()
+  
+  log <- c(log, "== DASHBOARD DATA STRUCTURE DIAGNOSIS ==")
+  log <- c(log, paste("Timestamp:", Sys.time()))
+  
+  # Check if data exists
+  if (is.null(data)) {
+    log <- c(log, "ERROR: Input data is NULL")
+    return(paste(log, collapse = "\n"))
+  }
+  
+  # Check top-level components
+  log <- c(log, "\n1. TOP LEVEL COMPONENTS:")
+  components <- names(data)
+  log <- c(log, paste("Components available:", paste(components, collapse = ", ")))
+  
+  # Check if essential components exist
+  required_components <- c("guests", "party_summary", "guest_costs", 
+                           "accommodation_summary", "age_category_summary", 
+                           "meal_counts")
+  
+  missing_components <- setdiff(required_components, components)
+  if (length(missing_components) > 0) {
+    log <- c(log, paste("MISSING COMPONENTS:", paste(missing_components, collapse = ", ")))
+  }
+  
+  # 2. Check Age Category Data
+  log <- c(log, "\n2. AGE CATEGORY DATA:")
+  
+  # Check if guest_costs exists and contains age_category
+  if ("guest_costs" %in% components) {
+    if ("age_category" %in% names(data$guest_costs)) {
+      age_categories <- unique(data$guest_costs$age_category)
+      log <- c(log, paste("Age categories in guest_costs:", paste(age_categories, collapse = ", ")))
+      
+      # Count by age category
+      age_counts <- table(data$guest_costs$age_category)
+      log <- c(log, "Age category counts:")
+      for (i in 1:length(age_counts)) {
+        log <- c(log, paste("  -", names(age_counts)[i], ":", age_counts[i]))
+      }
+    } else {
+      log <- c(log, "ERROR: guest_costs exists but has no age_category column")
+    }
+  }
+  
+  # Check age_category_summary
+  if ("age_category_summary" %in% components) {
+    log <- c(log, "\nage_category_summary structure:")
+    log <- c(log, paste("  Columns:", paste(names(data$age_category_summary), collapse = ", ")))
+    log <- c(log, paste("  Rows:", nrow(data$age_category_summary)))
+    
+    # Check expected columns
+    expected_cols <- c("age_category", "total_guests", "friday_count", "saturday_count", "sunday_count")
+    missing_cols <- setdiff(expected_cols, names(data$age_category_summary))
+    if (length(missing_cols) > 0) {
+      log <- c(log, paste("  MISSING COLUMNS:", paste(missing_cols, collapse = ", ")))
+    }
+    
+    # Show first few rows
+    if (nrow(data$age_category_summary) > 0) {
+      log <- c(log, "\n  Preview of age_category_summary (first 3 rows):")
+      preview <- utils::capture.output(print(head(data$age_category_summary, 3)))
+      log <- c(log, paste("    ", preview))
+    }
+  } else {
+    log <- c(log, "ERROR: age_category_summary component is missing")
+  }
+  
+  # 3. Check Accommodation Data
+  log <- c(log, "\n3. ACCOMMODATION DATA:")
+  
+  if ("accommodation_summary" %in% components) {
+    # Convert to data frame if it's not already
+    if (!is.data.frame(data$accommodation_summary)) {
+      log <- c(log, "  NOTE: accommodation_summary is not a data frame, it's a:", class(data$accommodation_summary)[1])
+      
+      # Try to show what it contains
+      summary_str <- utils::capture.output(print(data$accommodation_summary))
+      log <- c(log, "  Contents:")
+      log <- c(log, paste("    ", summary_str))
+    } else {
+      log <- c(log, paste("  Columns:", paste(names(data$accommodation_summary), collapse = ", ")))
+      
+      # Check for the night counts
+      night_cols <- c("friday_count", "saturday_count", "sunday_count")
+      for (col in night_cols) {
+        if (col %in% names(data$accommodation_summary)) {
+          log <- c(log, paste("  ", col, "=", data$accommodation_summary[[col]]))
+        } else {
+          log <- c(log, paste("  ERROR:", col, "is missing"))
+        }
+      }
+    }
+  } else {
+    log <- c(log, "ERROR: accommodation_summary component is missing")
+  }
+  
+  # 4. Check IFC Roster 
+  log <- c(log, "\n4. IFC ROSTER DATA:")
+  
+  # Check if ifc_roster exists
+  if ("ifc_roster" %in% components) {
+    ifc_data <- data$ifc_roster
+    log <- c(log, paste("  ifc_roster has", nrow(ifc_data), "rows"))
+  } else if ("ifc_schedule" %in% components) {
+    ifc_data <- data$ifc_schedule
+    log <- c(log, paste("  ifc_schedule has", nrow(ifc_data), "rows (ifc_roster missing)"))
+  } else {
+    log <- c(log, "  ERROR: Neither ifc_roster nor ifc_schedule found")
+    return(paste(log, collapse = "\n"))
+  }
+  
+  # Check cost columns
+  cost_cols <- c("total_cost", "total_guest_charge", "total_host_charge")
+  for (col in cost_cols) {
+    if (col %in% names(ifc_data)) {
+      log <- c(log, paste("  ", col, "data type:", class(ifc_data[[col]])[1]))
+      
+      # Check for NAs
+      na_count <- sum(is.na(ifc_data[[col]]))
+      if (na_count > 0) {
+        log <- c(log, paste("    WARNING:", na_count, "NA values in", col))
+      }
+      
+      # Check for non-numeric data if it's character
+      if (is.character(ifc_data[[col]])) {
+        non_numeric <- suppressWarnings(is.na(as.numeric(ifc_data[[col]])) & !is.na(ifc_data[[col]]))
+        if (any(non_numeric)) {
+          log <- c(log, paste("    ERROR:", sum(non_numeric), "non-numeric values in", col))
+          log <- c(log, paste("    Example:", ifc_data[[col]][which(non_numeric)[1]]))
+        }
+      }
+    } else {
+      log <- c(log, paste("  ERROR:", col, "column is missing"))
+    }
+  }
+  
+  # Check for under 21 guests
+  if ("age_category" %in% names(ifc_data)) {
+    under_21 <- ifc_data[grepl("Children|Guests 12-21", ifc_data$age_category), ]
+    log <- c(log, paste("\n  Found", nrow(under_21), "guests under 21"))
+    
+    if (nrow(under_21) > 0) {
+      # Check if they have costs
+      for (col in cost_cols) {
+        if (col %in% names(under_21)) {
+          # Try to convert to numeric if character
+          values <- if(is.character(under_21[[col]])) as.numeric(gsub("\\$|,", "", under_21[[col]])) else under_21[[col]]
+          
+          log <- c(log, paste("    ", col, "for under 21: Range", 
+                              min(values, na.rm = TRUE), "to", max(values, na.rm = TRUE), 
+                              ", Mean", mean(values, na.rm = TRUE)))
+        }
+      }
+      
+      # Show sample of under 21 guests
+      log <- c(log, "\n  Sample of under 21 guests:")
+      sample_cols <- intersect(c("first_name", "last_name", "age_category", "total_cost", "total_guest_charge", "total_host_charge"), names(under_21))
+      sample_data <- under_21[1:min(3, nrow(under_21)), sample_cols, drop = FALSE]
+      sample_output <- utils::capture.output(print(sample_data))
+      log <- c(log, paste("    ", sample_output))
+    }
+  } else {
+    log <- c(log, "  ERROR: No age_category column in IFC data")
+  }
+  
+  # 5. Check Cost Calculator data
+  log <- c(log, "\n5. COST CALCULATOR DATA:")
+  
+  if ("guest_costs" %in% components) {
+    guest_costs <- data$guest_costs
+    
+    # Check for key columns
+    key_cols <- c("first_name", "last_name", "age_category", "is_staying_friday", 
+                  "is_staying_saturday", "is_staying_sunday", "is_camping",
+                  "total_cost", "total_guest_charge", "total_host_charge")
+    
+    missing_cols <- setdiff(key_cols, names(guest_costs))
+    if (length(missing_cols) > 0) {
+      log <- c(log, paste("  MISSING COLUMNS:", paste(missing_cols, collapse = ", ")))
+    }
+    
+    # Check cost columns data types
+    cost_cols <- intersect(c("total_cost", "total_guest_charge", "total_host_charge"), names(guest_costs))
+    for (col in cost_cols) {
+      log <- c(log, paste("  ", col, "data type:", class(guest_costs[[col]])[1]))
+      
+      # Check for NAs
+      na_count <- sum(is.na(guest_costs[[col]]))
+      if (na_count > 0) {
+        log <- c(log, paste("    WARNING:", na_count, "NA values in", col))
+      }
+    }
+    
+    # Count guests by stay
+    stay_count <- sum(guest_costs$is_staying_friday | guest_costs$is_staying_saturday | guest_costs$is_staying_sunday, na.rm = TRUE)
+    log <- c(log, paste("  Total guests staying:", stay_count))
+    
+    # Count under 21 guests with stay
+    if ("age_category" %in% names(guest_costs)) {
+      under_21_staying <- guest_costs[grepl("Children|Guests 12-21", guest_costs$age_category) & 
+                                        (guest_costs$is_staying_friday | guest_costs$is_staying_saturday | guest_costs$is_staying_sunday), ]
+      log <- c(log, paste("  Under 21 guests staying:", nrow(under_21_staying)))
+    }
+  } else {
+    log <- c(log, "ERROR: guest_costs component is missing")
+  }
+  
+  log <- c(log, "\n== END DIAGNOSIS ==")
+  return(paste(log, collapse = "\n"))
+}
+
+
 # UI
 ui <- dashboardPage(
   dashboardHeader(title = "Wedding RSVP Dashboard"),
@@ -341,6 +601,39 @@ ui <- dashboardPage(
 
 # Server
 server <- function(input, output, session) {
+  
+    # Add diagnostic button to the dashboard
+  output$diagnosticOutput <- renderPrint({
+    # This will capture any diagnostic output
+    req(input$runDiagnostic)
+    if (input$runDiagnostic > 0) {
+      req(processed_data())
+      diagnose_data_structure(processed_data())
+    }
+  })
+  
+  # Add this to your dashboard UI (inside dashboardBody or in any tab):
+  # actionButton("runDiagnostic", "Run Diagnostics"),
+  # verbatimTextOutput("diagnosticOutput")
+  
+  # Create a diagnostic observer that runs once when data is loaded
+  observe({
+    req(processed_data())
+    
+    # Write diagnostics to a file so they don't get lost in the console
+    diagnostics <- diagnose_data_structure(processed_data())
+    
+    # Print to console
+    cat(diagnostics)
+    
+    # Also save to a file
+    writeLines(diagnostics, "dashboard_diagnostics.txt")
+    
+    # Only run once
+    if (!is.null(processed_data())) {
+      return(invisible(NULL))
+    }
+  })
   # Source our new functions
   source("rates.R")
   source("helpers.R")
@@ -676,30 +969,16 @@ server <- function(input, output, session) {
   output$age_category_table <- renderTable({
     req(processed_data())
     
-    # Check if age_category_summary exists and has data
-    if (!is.null(processed_data()$age_category_summary) && 
-        nrow(processed_data()$age_category_summary) > 0) {
-      
-      # Use pre-calculated age_category_summary
-      processed_data()$age_category_summary %>%
-        select(age_category, total_guests, friday_count, saturday_count, sunday_count) %>%
-        rename(
-          "Age Category" = age_category,
-          "Total Guests" = total_guests,
-          "Friday" = friday_count,
-          "Saturday" = saturday_count,
-          "Sunday" = sunday_count
-        )
-    } else {
-      # Fallback if age categories summary not found
-      data.frame(
-        "Age Category" = "Data not available",
-        "Total Guests" = NA,
-        "Friday" = NA,
-        "Saturday" = NA,
-        "Sunday" = NA
+    # The problem is that age_category_summary doesn't have the expected columns
+    # Let's recalculate them from guest_costs
+    processed_data()$guest_costs %>%
+      group_by(age_category) %>%
+      summarize(
+        "Total Guests" = n(),
+        "Friday" = sum(is_staying_friday, na.rm = TRUE),
+        "Saturday" = sum(is_staying_saturday, na.rm = TRUE),
+        "Sunday" = sum(is_staying_sunday, na.rm = TRUE)
       )
-    }
   })
   
   output$cost_summary_table <- renderTable({
@@ -939,34 +1218,19 @@ server <- function(input, output, session) {
   output$age_accommodation_plot <- renderPlotly({
     req(processed_data())
     
-    # Check if age_category_summary exists and has data
-    if (!is.null(processed_data()$age_category_summary) && 
-        nrow(processed_data()$age_category_summary) > 0) {
-      
-      # Use pre-calculated age category summary
-      age_data <- processed_data()$age_category_summary %>%
-        select(Category = age_category, Count = total_guests) %>%
-        arrange(desc(Count))
-      
-      # Create plot
-      p <- plot_ly(age_data, x = ~Category, y = ~Count, type = 'bar',
-                   marker = list(color = '#5DADE2'))
-      p <- p %>% layout(title = "Accommodation by Age Category",
-                        xaxis = list(title = ""),
-                        yaxis = list(title = "Number of Guests"))
-      p
-    } else {
-      # Create a simple placeholder plot if no age data
-      plot_ly() %>%
-        layout(
-          title = "Accommodation by Age Category",
-          annotations = list(
-            x = 0.5, y = 0.5, 
-            text = "Age category data not available",
-            showarrow = FALSE
-          )
-        )
-    }
+    # Create category counts directly from guest_costs
+    age_data <- processed_data()$guest_costs %>%
+      group_by(Category = age_category) %>%
+      summarize(Count = n()) %>%
+      arrange(desc(Count))
+    
+    # Create plot
+    p <- plot_ly(age_data, x = ~Category, y = ~Count, type = 'bar',
+                 marker = list(color = '#5DADE2'))
+    p <- p %>% layout(title = "Accommodation by Age Category",
+                      xaxis = list(title = ""),
+                      yaxis = list(title = "Number of Guests"))
+    p
   })
   
   # Accommodation by night with age breakdown - using pre-calculated data
@@ -1834,9 +2098,8 @@ server <- function(input, output, session) {
   output$guest_costs_table <- renderDT({
     req(processed_data())
     
-    # Display all staying guests, with all age categories
+    # Include all guests with any stay
     costs_display <- processed_data()$guest_costs %>%
-      # Include all guests with any stay
       filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
       # Convert all cost columns to numeric
       mutate(across(matches("cost|charge"), as.numeric)) %>%
