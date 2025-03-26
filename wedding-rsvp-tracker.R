@@ -231,18 +231,38 @@ count_by_age_category <- function(guests) {
 }
 
 # Function to calculate accommodation costs with financial breakdown
-# Improved function to calculate accommodation costs with more robust handling
-# Updated function in wedding-rsvp-tracker.R
-# Function to calculate accommodation costs with financial breakdown
-# Improved function to calculate accommodation costs with more robust handling
-# Fixed for accurate host charges for under 21 guests
 calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_path = "charge_rates.csv") {
-  # Source our new functions
-  source("rates.R")
-  source("helpers.R")
+  # Source any helpers we need
+  if (exists("ensure_numeric_costs")) {
+    source("helpers.R")
+  }
   
-  # Load rates
-  rates_data <- load_rates(rates_path)
+  # Load rates data
+  rates_data <- NULL
+  if (file.exists(rates_path)) {
+    rates_data <- read_csv(rates_path, 
+                           col_types = cols(.default = col_character()),
+                           na = c("", "NA", "N/A"))
+    
+    # Standardize column names
+    names(rates_data) <- names(rates_data) %>%
+      str_to_lower() %>%
+      str_replace_all(" ", "_") %>%
+      str_replace_all("[^a-z0-9_]", "")
+    
+    # Ensure numeric columns
+    numeric_cols <- c("ifc_rate", "gratuity", "expected_guest_count", 
+                      "total_ifc_revenue", "listed_standard_guest_rate", 
+                      "listed_standard_guest_meal_rate", "per_guest_charge", 
+                      "total_guest_charge", "total_host_charge")
+    
+    rates_data <- rates_data %>%
+      mutate(across(all_of(numeric_cols), as.numeric))
+    
+    cat("Loaded rates from:", rates_path, "\n")
+  } else {
+    cat("Rates file not found, using default values\n")
+  }
   
   # First determine stay information
   possible_friday_cols <- c("friday_ifc_stay_1", "ifc_stay_1", "friday_ifc_stay")
@@ -281,16 +301,255 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
   cat("Number of camping guests:", sum(guests$is_camping, na.rm = TRUE), "\n")
   
   # Assign age categories
-  guests <- assign_age_categories(guests, age_data_path)
+  if (!is.null(age_data_path) && file.exists(age_data_path)) {
+    guests <- assign_age_categories(guests, age_data_path)
+  } else if (!"age_category" %in% names(guests)) {
+    guests$age_category <- "Adults 21+ Room"
+  }
   
-  # Process charges using our centralized function
-  guests_with_charges <- process_guest_charges(guests, rates_data)
+  # Update camping adults AFTER age categories are assigned
+  guests <- guests %>%
+    mutate(
+      age_category = ifelse(
+        age_category == "Adults 21+ Room" & is_camping,
+        "Adults 21+ Camping",
+        age_category
+      )
+    )
   
-  # Ensure all cost fields are numeric
-  guests_with_charges <- ensure_numeric_costs(guests_with_charges)
+  # Define default rates in case rates_data is NULL
+  FRIDAY_ADULTS_ROOM_COST <- 247.5   # 225 + 22.5
+  FRIDAY_TEEN_ROOM_COST <- 247.5     # 225 + 22.5
+  FRIDAY_CHILD_ROOM_COST <- 192.5    # 175 + 17.5
+  FRIDAY_INFANT_ROOM_COST <- 0       # 0 + 0
+  FRIDAY_CAMPING_COST <- 165         # 150 + 15
+  
+  SATURDAY_ADULTS_ROOM_COST <- 247.5 # 225 + 22.5
+  SATURDAY_TEEN_ROOM_COST <- 247.5   # 225 + 22.5
+  SATURDAY_CHILD_ROOM_COST <- 192.5  # 175 + 17.5
+  SATURDAY_INFANT_ROOM_COST <- 0     # 0 + 0
+  SATURDAY_CAMPING_COST <- 165       # 150 + 15
+  
+  SUNDAY_ADULTS_ROOM_COST <- 119.9   # 109 + 10.9
+  SUNDAY_TEEN_ROOM_COST <- 119.9     # 109 + 10.9
+  SUNDAY_CHILD_ROOM_COST <- 75.9     # 69 + 6.9
+  SUNDAY_INFANT_ROOM_COST <- 0       # 0 + 0
+  SUNDAY_CAMPING_COST <- 82.5        # 75 + 7.5
+  
+  # Adult guest charges (what they pay)
+  FRIDAY_ADULTS_ROOM_GUEST <- 108
+  FRIDAY_CAMPING_GUEST <- 72
+  
+  SATURDAY_ADULTS_ROOM_GUEST <- 172
+  SATURDAY_CAMPING_GUEST <- 90
+  
+  SUNDAY_ADULTS_ROOM_GUEST <- 18
+  SUNDAY_CAMPING_GUEST <- 18
+  
+  # Under-21 guest charges - ALWAYS 0
+  UNDER_21_GUEST_CHARGE <- 0
+  
+  # Override with rates from file if available
+  if (!is.null(rates_data)) {
+    get_rate <- function(night, category, field, default) {
+      result <- rates_data %>%
+        filter(night == !!night & category == !!category) %>%
+        pull(!!field)
+      
+      if (length(result) == 0 || is.na(result[1])) {
+        return(default)
+      }
+      
+      return(as.numeric(result[1]))
+    }
+    
+    # Get rates from file if possible
+    friday_rate_found <- any(rates_data$night == "Friday", na.rm = TRUE)
+    saturday_rate_found <- any(rates_data$night == "Saturday", na.rm = TRUE)
+    sunday_rate_found <- any(rates_data$night == "Sunday", na.rm = TRUE)
+    
+    if (friday_rate_found) {
+      FRIDAY_ADULTS_ROOM_COST <- get_rate("Friday", "Adults 21+ Room", "ifc_rate", 225) + 
+        get_rate("Friday", "Adults 21+ Room", "gratuity", 22.5)
+      FRIDAY_TEEN_ROOM_COST <- get_rate("Friday", "Guests 12-21 Room", "ifc_rate", 225) + 
+        get_rate("Friday", "Guests 12-21 Room", "gratuity", 22.5)
+      FRIDAY_CHILD_ROOM_COST <- get_rate("Friday", "Children 5-12 Room", "ifc_rate", 175) + 
+        get_rate("Friday", "Children 5-12 Room", "gratuity", 17.5)
+      FRIDAY_INFANT_ROOM_COST <- get_rate("Friday", "Children <5 Room", "ifc_rate", 0) + 
+        get_rate("Friday", "Children <5 Room", "gratuity", 0)
+      FRIDAY_CAMPING_COST <- get_rate("Friday", "Adults 21+ Camping", "ifc_rate", 150) + 
+        get_rate("Friday", "Adults 21+ Camping", "gratuity", 15)
+      
+      FRIDAY_ADULTS_ROOM_GUEST <- get_rate("Friday", "Adults 21+ Room", "per_guest_charge", 108)
+      FRIDAY_CAMPING_GUEST <- get_rate("Friday", "Adults 21+ Camping", "per_guest_charge", 72)
+    }
+    
+    if (saturday_rate_found) {
+      SATURDAY_ADULTS_ROOM_COST <- get_rate("Saturday", "Adults 21+ Room", "ifc_rate", 225) + 
+        get_rate("Saturday", "Adults 21+ Room", "gratuity", 22.5)
+      SATURDAY_TEEN_ROOM_COST <- get_rate("Saturday", "Guests 12-21 Room", "ifc_rate", 225) + 
+        get_rate("Saturday", "Guests 12-21 Room", "gratuity", 22.5)
+      SATURDAY_CHILD_ROOM_COST <- get_rate("Saturday", "Children 5-12 Room", "ifc_rate", 175) + 
+        get_rate("Saturday", "Children 5-12 Room", "gratuity", 17.5)
+      SATURDAY_INFANT_ROOM_COST <- get_rate("Saturday", "Children <5 Room", "ifc_rate", 0) + 
+        get_rate("Saturday", "Children <5 Room", "gratuity", 0)
+      SATURDAY_CAMPING_COST <- get_rate("Saturday", "Adults 21+ Camping", "ifc_rate", 150) + 
+        get_rate("Saturday", "Adults 21+ Camping", "gratuity", 15)
+      
+      SATURDAY_ADULTS_ROOM_GUEST <- get_rate("Saturday", "Adults 21+ Room", "per_guest_charge", 172)
+      SATURDAY_CAMPING_GUEST <- get_rate("Saturday", "Adults 21+ Camping", "per_guest_charge", 90)
+    }
+    
+    if (sunday_rate_found) {
+      SUNDAY_ADULTS_ROOM_COST <- get_rate("Sunday", "Adults 21+ Room", "ifc_rate", 109) + 
+        get_rate("Sunday", "Adults 21+ Room", "gratuity", 10.9)
+      SUNDAY_TEEN_ROOM_COST <- get_rate("Sunday", "Guests 12-21 Room", "ifc_rate", 109) + 
+        get_rate("Sunday", "Guests 12-21 Room", "gratuity", 10.9)
+      SUNDAY_CHILD_ROOM_COST <- get_rate("Sunday", "Children 5-12 Room", "ifc_rate", 69) + 
+        get_rate("Sunday", "Children 5-12 Room", "gratuity", 6.9)
+      SUNDAY_INFANT_ROOM_COST <- get_rate("Sunday", "Children <5 Room", "ifc_rate", 0) + 
+        get_rate("Sunday", "Children <5 Room", "gratuity", 0)
+      SUNDAY_CAMPING_COST <- get_rate("Sunday", "Adults 21+ Camping", "ifc_rate", 75) + 
+        get_rate("Sunday", "Adults 21+ Camping", "gratuity", 7.5)
+      
+      SUNDAY_ADULTS_ROOM_GUEST <- get_rate("Sunday", "Adults 21+ Room", "per_guest_charge", 18)
+      SUNDAY_CAMPING_GUEST <- get_rate("Sunday", "Adults 21+ Camping", "per_guest_charge", 18)
+    }
+  }
+  
+  # Now calculate costs based on age category, accommodation type, and nights
+  # This approach does not rely on rates.R functions
+  guests <- guests %>%
+    mutate(
+      # Initialize with zero costs
+      friday_cost = 0,
+      saturday_cost = 0, 
+      sunday_cost = 0,
+      friday_guest_charge = 0,
+      saturday_guest_charge = 0,
+      sunday_guest_charge = 0,
+      friday_host_charge = 0,
+      saturday_host_charge = 0,
+      sunday_host_charge = 0,
+      
+      # Calculate Friday costs
+      friday_cost = case_when(
+        !is_staying_friday ~ 0,
+        age_category == "Adults 21+ Room" ~ FRIDAY_ADULTS_ROOM_COST,
+        age_category == "Guests 12-21 Room" ~ FRIDAY_TEEN_ROOM_COST,
+        age_category == "Children 5-12 Room" ~ FRIDAY_CHILD_ROOM_COST,
+        age_category == "Children <5 Room" ~ FRIDAY_INFANT_ROOM_COST,
+        age_category == "Adults 21+ Camping" ~ FRIDAY_CAMPING_COST,
+        TRUE ~ 0
+      ),
+      
+      # Friday guest charges - ZERO for under 21
+      friday_guest_charge = case_when(
+        !is_staying_friday ~ 0,
+        age_category == "Adults 21+ Room" ~ FRIDAY_ADULTS_ROOM_GUEST,
+        age_category == "Adults 21+ Camping" ~ FRIDAY_CAMPING_GUEST,
+        TRUE ~ UNDER_21_GUEST_CHARGE  # All under-21 guest charges are ZERO
+      ),
+      
+      # Friday host charges - difference between cost and guest charge
+      friday_host_charge = friday_cost - friday_guest_charge,
+      
+      # Calculate Saturday costs
+      saturday_cost = case_when(
+        !is_staying_saturday ~ 0,
+        age_category == "Adults 21+ Room" ~ SATURDAY_ADULTS_ROOM_COST,
+        age_category == "Guests 12-21 Room" ~ SATURDAY_TEEN_ROOM_COST,
+        age_category == "Children 5-12 Room" ~ SATURDAY_CHILD_ROOM_COST,
+        age_category == "Children <5 Room" ~ SATURDAY_INFANT_ROOM_COST,
+        age_category == "Adults 21+ Camping" ~ SATURDAY_CAMPING_COST,
+        TRUE ~ 0
+      ),
+      
+      # Saturday guest charges - ZERO for under 21
+      saturday_guest_charge = case_when(
+        !is_staying_saturday ~ 0,
+        age_category == "Adults 21+ Room" ~ SATURDAY_ADULTS_ROOM_GUEST,
+        age_category == "Adults 21+ Camping" ~ SATURDAY_CAMPING_GUEST,
+        TRUE ~ UNDER_21_GUEST_CHARGE  # All under-21 guest charges are ZERO
+      ),
+      
+      # Saturday host charges - difference between cost and guest charge
+      saturday_host_charge = saturday_cost - saturday_guest_charge,
+      
+      # Calculate Sunday costs
+      sunday_cost = case_when(
+        !is_staying_sunday ~ 0,
+        age_category == "Adults 21+ Room" ~ SUNDAY_ADULTS_ROOM_COST,
+        age_category == "Guests 12-21 Room" ~ SUNDAY_TEEN_ROOM_COST,
+        age_category == "Children 5-12 Room" ~ SUNDAY_CHILD_ROOM_COST,
+        age_category == "Children <5 Room" ~ SUNDAY_INFANT_ROOM_COST,
+        age_category == "Adults 21+ Camping" ~ SUNDAY_CAMPING_COST,
+        TRUE ~ 0
+      ),
+      
+      # Sunday guest charges - ZERO for under 21
+      sunday_guest_charge = case_when(
+        !is_staying_sunday ~ 0,
+        age_category == "Adults 21+ Room" ~ SUNDAY_ADULTS_ROOM_GUEST,
+        age_category == "Adults 21+ Camping" ~ SUNDAY_CAMPING_GUEST,
+        TRUE ~ UNDER_21_GUEST_CHARGE  # All under-21 guest charges are ZERO
+      ),
+      
+      # Sunday host charges - difference between cost and guest charge
+      sunday_host_charge = sunday_cost - sunday_guest_charge,
+      
+      # Calculate totals
+      total_cost = friday_cost + saturday_cost + sunday_cost,
+      total_guest_charge = friday_guest_charge + saturday_guest_charge + sunday_guest_charge,
+      total_host_charge = friday_host_charge + saturday_host_charge + sunday_host_charge
+    )
+  
+  # Add vegetarian and special diet flags for meal planning
+  guests <- guests %>%
+    mutate(
+      is_vegetarian = meal_preferences == "No meat" | 
+        meal_preferences == "Opt-in for fish only",
+      has_special_diet = !is.na(dietary_restrictions) & 
+        dietary_restrictions != ""
+    )
+  
+  # Verify the calculation - especially for under-21 guests
+  under_21_guests <- grepl("Children|Guests 12-21", guests$age_category)
+  num_under_21 <- sum(under_21_guests)
+  
+  if (num_under_21 > 0) {
+    cat("Found", num_under_21, "guests under 21 years old\n")
+    
+    # Check for zero guest charges
+    zero_guest_charges <- sum(guests[under_21_guests, "total_guest_charge"] == 0)
+    cat("Under-21 guests with zero guest charges:", zero_guest_charges, "\n")
+    
+    # Check for matching host and total charges
+    matching_host_charges <- sum(guests[under_21_guests, "total_host_charge"] == guests[under_21_guests, "total_cost"])
+    cat("Under-21 guests with host charge = total cost:", matching_host_charges, "\n")
+    
+    if (zero_guest_charges < num_under_21 || matching_host_charges < num_under_21) {
+      cat("WARNING: Some under-21 guests have incorrect charges!\n")
+      
+      # Force-fix any incorrect charges
+      guests[under_21_guests, "friday_guest_charge"] <- 0
+      guests[under_21_guests, "saturday_guest_charge"] <- 0
+      guests[under_21_guests, "sunday_guest_charge"] <- 0
+      guests[under_21_guests, "total_guest_charge"] <- 0
+      
+      guests[under_21_guests, "friday_host_charge"] <- guests[under_21_guests, "friday_cost"]
+      guests[under_21_guests, "saturday_host_charge"] <- guests[under_21_guests, "saturday_cost"]
+      guests[under_21_guests, "sunday_host_charge"] <- guests[under_21_guests, "sunday_cost"]
+      guests[under_21_guests, "total_host_charge"] <- guests[under_21_guests, "total_cost"]
+      
+      cat("Fixed all under-21 guest charges\n")
+    } else {
+      cat("All under-21 guest charges are correct\n")
+    }
+  }
   
   # Create accommodation summary
-  accommodation_summary <- guests_with_charges %>%
+  accommodation_summary <- guests %>%
     summarize(
       total_guests = n(),
       friday_count = sum(is_staying_friday, na.rm = TRUE),
@@ -320,26 +579,20 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
     )
   
   # Age category breakdown
-  age_category_summary <- summarize_by_age(guests_with_charges, 
-                                           c("total_cost", "total_guest_charge", "total_host_charge",
-                                             "friday_cost", "saturday_cost", "sunday_cost"))
-  
-  # Add guest counts by age category and night
-  age_category_summary <- age_category_summary %>%
-    left_join(
-      guests_with_charges %>%
-        group_by(age_category) %>%
-        summarize(
-          total_guests = n(),
-          friday_count = sum(is_staying_friday, na.rm = TRUE),
-          saturday_count = sum(is_staying_saturday, na.rm = TRUE),
-          sunday_count = sum(is_staying_sunday, na.rm = TRUE)
-        ),
-      by = "age_category"
+  age_category_summary <- guests %>%
+    group_by(age_category) %>%
+    summarize(
+      total_guests = n(),
+      friday_count = sum(is_staying_friday, na.rm = TRUE),
+      saturday_count = sum(is_staying_saturday, na.rm = TRUE),
+      sunday_count = sum(is_staying_sunday, na.rm = TRUE),
+      total_cost = sum(total_cost, na.rm = TRUE),
+      total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
+      total_host_charge = sum(total_host_charge, na.rm = TRUE)
     )
   
   return(list(
-    guest_costs = guests_with_charges,
+    guest_costs = guests,
     summary = accommodation_summary,
     age_category_summary = age_category_summary
   ))
