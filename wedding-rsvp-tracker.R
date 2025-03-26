@@ -1132,7 +1132,10 @@ generate_meal_roster_by_age <- function(results) {
 generate_wedding_reports <- function(file_path, age_data_path = "Wedding Budget Invite List.csv", 
                                      rates_path = "charge_rates.csv") {
   # Read guest list
-  guests <- read_guest_list(file_path)
+  guests <- read_guest_list(file_path)%>%
+    filter(!((is.na(first_name) | first_name == "") & 
+               (is.na(last_name) | last_name == "")) | 
+             wedding_rsvp == "Joyfully Accept")
   
   # Generate party summary
   party_summary <- generate_party_summary(guests)

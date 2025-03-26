@@ -422,11 +422,8 @@ ui <- dashboardPage(
                 valueBoxOutput("nights_booked", width = 3)
               ),
               fluidRow(
-                box(title = "Accommodation by Age Category", status = "primary", width = 6,
-                    plotlyOutput("age_accommodation_plot")
-                ),
-                box(title = "Accommodation by Night", status = "warning", width = 6,
-                    plotlyOutput("night_accommodation_plot")
+                box(title = "Accommodations by Night and Age Category", status = "primary", width = 12,
+                    plotlyOutput("stays_by_night_category_plot")
                 )
               ),
               fluidRow(
@@ -1214,46 +1211,93 @@ server <- function(input, output, session) {
     )
   })
   
-  # Improved age accommodation plot that handles missing data
-  output$age_accommodation_plot <- renderPlotly({
-    req(processed_data())
-    
-    # Create category counts directly from guest_costs
-    age_data <- processed_data()$guest_costs %>%
-      group_by(Category = age_category) %>%
-      summarize(Count = n()) %>%
-      arrange(desc(Count))
-    
-    # Create plot
-    p <- plot_ly(age_data, x = ~Category, y = ~Count, type = 'bar',
-                 marker = list(color = '#5DADE2'))
-    p <- p %>% layout(title = "Accommodation by Age Category",
-                      xaxis = list(title = ""),
-                      yaxis = list(title = "Number of Guests"))
-    p
-  })
   
-  # Accommodation by night with age breakdown - using pre-calculated data
-  output$night_accommodation_plot <- renderPlotly({
+  output$stays_by_night_category_plot <- renderPlotly({
     req(processed_data())
     
-    # Get summary data
-    acc_summary <- processed_data()$accommodation_summary
+    # Create a data frame with stays by night and age category
+    stays_data <- processed_data()$guest_costs %>%
+      filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+      # Reshape data to long format for easier plotting
+      pivot_longer(
+        cols = c(is_staying_friday, is_staying_saturday, is_staying_sunday),
+        names_to = "stay_night",
+        values_to = "is_staying"
+      ) %>%
+      # Clean up the night names
+      mutate(
+        night = case_when(
+          stay_night == "is_staying_friday" ~ "Friday",
+          stay_night == "is_staying_saturday" ~ "Saturday",
+          stay_night == "is_staying_sunday" ~ "Sunday"
+        )
+      ) %>%
+      # Only keep records where the guest is staying
+      filter(is_staying) %>%
+      # Count by night and age category
+      group_by(night, age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      # Ensure nights are in the correct order
+      mutate(night = factor(night, levels = c("Friday", "Saturday", "Sunday")))
     
-    # Create basic night distribution regardless of age data
-    nights_data <- data.frame(
-      Night = c("Friday", "Saturday", "Sunday"),
-      Count = c(acc_summary$friday_count, acc_summary$saturday_count, acc_summary$sunday_count)
+    # Define a pleasing color palette for age categories
+    color_palette <- c(
+      "Adults 21+ Room" = "#3498db",      # Blue
+      "Adults 21+ Camping" = "#2ecc71",   # Green
+      "Guests 12-21 Room" = "#9b59b6",    # Purple
+      "Children 5-12 Room" = "#e74c3c",   # Red
+      "Children <5 Room" = "#f39c12"      # Orange
     )
     
-    # Create plot
-    p <- plot_ly(nights_data, x = ~Night, y = ~Count, type = 'bar',
-                 marker = list(color = c('#5DADE2', '#F4D03F', '#58D68D')))
-    p <- p %>% layout(title = "Guests Staying Each Night",
-                      xaxis = list(title = ""),
-                      yaxis = list(title = "Number of Guests"))
-    p
+    # Create the stacked bar chart
+    p <- plot_ly(
+      data = stays_data,
+      x = ~night,
+      y = ~count,
+      color = ~age_category,
+      colors = color_palette,
+      type = "bar"
+    ) %>%
+      layout(
+        title = "Guest Stays by Night and Age Category",
+        xaxis = list(title = "Night", categoryorder = "array", categoryarray = c("Friday", "Saturday", "Sunday")),
+        yaxis = list(title = "Number of Guests"),
+        barmode = "stack",
+        legend = list(title = list(text = "Age Category")),
+        hovermode = "closest"
+      )
+    
+    return(p)
   })
+  
+  # You can also add this helper function to create a data table showing the same information
+  output$stays_by_night_category_table <- renderTable({
+    req(processed_data())
+    
+    # Create a summary table of stays by night and age category
+    stays_summary <- processed_data()$guest_costs %>%
+      group_by(age_category) %>%
+      summarize(
+        `Friday` = sum(is_staying_friday, na.rm = TRUE),
+        `Saturday` = sum(is_staying_saturday, na.rm = TRUE), 
+        `Sunday` = sum(is_staying_sunday, na.rm = TRUE),
+        `Total` = n()
+      ) %>%
+      arrange(desc(`Total`))
+    
+    # Add a totals row
+    totals <- data.frame(
+      age_category = "Total",
+      Friday = sum(stays_summary$Friday),
+      Saturday = sum(stays_summary$Saturday),
+      Sunday = sum(stays_summary$Sunday),
+      Total = sum(stays_summary$Total)
+    )
+    
+    bind_rows(stays_summary, totals)
+  })
+  
+
   
   output$accommodation_table <- renderDT({
     req(processed_data())
@@ -1331,18 +1375,21 @@ server <- function(input, output, session) {
     # Use pre-calculated meal counts
     meal_counts <- processed_data()$meal_counts
     
+    # Define chronological meal order
+    meal_order <- c(
+      "Friday Dinner", 
+      "Saturday Breakfast", 
+      "Saturday Lunch", 
+      "Saturday Dinner", 
+      "Sunday Breakfast",
+      "Sunday Lunch (Wedding)",
+      "Sunday Dinner",
+      "Monday Breakfast"
+    )
+    
     # Format data for plotting
     meal_data <- data.frame(
-      Meal = c(
-        "Friday Dinner", 
-        "Saturday Breakfast", 
-        "Saturday Lunch", 
-        "Saturday Dinner", 
-        "Sunday Breakfast",
-        "Sunday Lunch (Wedding)",
-        "Sunday Dinner",
-        "Monday Breakfast"
-      ),
+      Meal = meal_order,
       On_Site = c(
         meal_counts$friday_dinner_onsite,
         meal_counts$saturday_breakfast_onsite,
@@ -1372,13 +1419,20 @@ server <- function(input, output, session) {
     meal_data_long <- meal_data %>%
       pivot_longer(cols = c("On_Site", "Off_Site", "Wedding_Reception"), 
                    names_to = "Guest_Type", values_to = "Count") %>%
-      filter(Count > 0)  # Only show meals with guests
+      filter(Count > 0) %>%  # Only show meals with guests
+      # Explicitly set the meal factor levels in chronological order
+      mutate(Meal = factor(Meal, levels = meal_order))
     
-    # Create plot
+    # Create plot with ordered x-axis
     p <- plot_ly(meal_data_long, x = ~Meal, y = ~Count, color = ~Guest_Type, type = 'bar',
                  colors = c("On_Site" = "#3498DB", "Off_Site" = "#E74C3C", "Wedding_Reception" = "#2ECC71"))
-    p <- p %>% layout(title = "Meal Attendance by Guest Type",
-                      xaxis = list(title = ""),
+    
+    p <- p %>% layout(title = "Meal Attendance by Guest Type (Chronological)",
+                      xaxis = list(
+                        title = "",
+                        categoryorder = "array",
+                        categoryarray = meal_order
+                      ),
                       yaxis = list(title = "Number of Guests"),
                       barmode = 'stack',
                       legend = list(title = list(text = "Guest Type")))
