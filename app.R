@@ -634,6 +634,8 @@ server <- function(input, output, session) {
   # Source our new functions
   source("rates.R")
   source("helpers.R")
+  source("wedding-rsvp-tracker.R")
+  source("cost-summary-generator.R")
   
   # Storage for processed data
   processed_data <- reactiveVal(NULL)
