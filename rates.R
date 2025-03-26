@@ -79,16 +79,65 @@ create_default_rates <- function() {
 }
 
 # Get rate for a specific night/category/field combination
+# Modified get_rate function to handle Sunday label properly
 get_rate <- function(rates, night, category, field, default = 0) {
-  result <- rates %>%
-    filter(night == !!night, category == !!category) %>%
-    pull(!!field)
+  # Convert inputs to character to prevent issues with factors
+  night <- as.character(night)
+  category <- as.character(category)
+  field <- as.character(field)
+  
+  # Special handling for Sunday lookup
+  if (night == "Sunday") {
+    # Look for any rates where night contains "Sunday"
+    result <- rates %>%
+      filter(grepl("Sunday", night) & category == !!category) %>%
+      pull(!!field)
+  } else {
+    # Normal lookup for other nights
+    result <- rates %>%
+      filter(night == !!night & category == !!category) %>%
+      pull(!!field)
+  }
   
   if (length(result) == 0 || is.na(result[1])) {
     return(default)
   }
   
   return(as.numeric(result[1]))
+}
+
+# Or alternatively, modify the rate loading function to clean up the labels
+load_rates <- function(file_path = "charge_rates.csv") {
+  # Load rates with error handling
+  if (file.exists(file_path)) {
+    rates <- read_csv(file_path, 
+                      col_types = cols(.default = col_character()),
+                      na = c("", "NA", "N/A"))
+    
+    # Standardize column names
+    names(rates) <- names(rates) %>%
+      str_to_lower() %>%
+      str_replace_all(" ", "_") %>%
+      str_replace_all("[^a-z0-9_]", "")
+    
+    # Clean up night values to use just the day name
+    rates <- rates %>%
+      mutate(night = ifelse(grepl("Sunday", night), "Sunday", night))
+    
+    # Convert numeric columns
+    numeric_cols <- c("ifc_rate", "gratuity", "expected_guest_count", 
+                      "total_ifc_revenue", "listed_standard_guest_rate", 
+                      "listed_standard_guest_meal_rate", "per_guest_charge", 
+                      "total_guest_charge", "total_host_charge")
+    
+    rates <- rates %>%
+      mutate(across(all_of(numeric_cols), as.numeric))
+    
+    return(rates)
+  } else {
+    message("Rate information file not found: ", file_path)
+    return(create_default_rates())
+  }
 }
 
 # Calculate charges for a guest based on their details
