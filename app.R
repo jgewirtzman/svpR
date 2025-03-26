@@ -676,16 +676,30 @@ server <- function(input, output, session) {
   output$age_category_table <- renderTable({
     req(processed_data())
     
-    # Use pre-calculated age_category_summary
-    processed_data()$age_category_summary %>%
-      select(age_category, total_guests, friday_count, saturday_count, sunday_count) %>%
-      rename(
-        "Age Category" = age_category,
-        "Total Guests" = total_guests,
-        "Friday" = friday_count,
-        "Saturday" = saturday_count,
-        "Sunday" = sunday_count
+    # Check if age_category_summary exists and has data
+    if (!is.null(processed_data()$age_category_summary) && 
+        nrow(processed_data()$age_category_summary) > 0) {
+      
+      # Use pre-calculated age_category_summary
+      processed_data()$age_category_summary %>%
+        select(age_category, total_guests, friday_count, saturday_count, sunday_count) %>%
+        rename(
+          "Age Category" = age_category,
+          "Total Guests" = total_guests,
+          "Friday" = friday_count,
+          "Saturday" = saturday_count,
+          "Sunday" = sunday_count
+        )
+    } else {
+      # Fallback if age categories summary not found
+      data.frame(
+        "Age Category" = "Data not available",
+        "Total Guests" = NA,
+        "Friday" = NA,
+        "Saturday" = NA,
+        "Sunday" = NA
       )
+    }
   })
   
   output$cost_summary_table <- renderTable({
@@ -925,8 +939,10 @@ server <- function(input, output, session) {
   output$age_accommodation_plot <- renderPlotly({
     req(processed_data())
     
-    # Check if age_category is in the data
-    if ("age_category" %in% names(processed_data()$guests)) {
+    # Check if age_category_summary exists and has data
+    if (!is.null(processed_data()$age_category_summary) && 
+        nrow(processed_data()$age_category_summary) > 0) {
+      
       # Use pre-calculated age category summary
       age_data <- processed_data()$age_category_summary %>%
         select(Category = age_category, Count = total_guests) %>%
@@ -940,13 +956,13 @@ server <- function(input, output, session) {
                         yaxis = list(title = "Number of Guests"))
       p
     } else {
-      # Create a placeholder plot if no age data
+      # Create a simple placeholder plot if no age data
       plot_ly() %>%
         layout(
           title = "Accommodation by Age Category",
           annotations = list(
             x = 0.5, y = 0.5, 
-            text = "No age category data available",
+            text = "Age category data not available",
             showarrow = FALSE
           )
         )
@@ -957,44 +973,22 @@ server <- function(input, output, session) {
   output$night_accommodation_plot <- renderPlotly({
     req(processed_data())
     
-    # Check if age_category is in the data
-    if ("age_category" %in% names(processed_data()$guests)) {
-      # Use pre-calculated age category summary with night breakdown
-      age_night_data <- processed_data()$age_category_summary %>%
-        select(Category = age_category, friday_count, saturday_count, sunday_count) %>%
-        pivot_longer(cols = c(friday_count, saturday_count, sunday_count), 
-                     names_to = "Night", values_to = "Count") %>%
-        mutate(Night = case_when(
-          Night == "friday_count" ~ "Friday",
-          Night == "saturday_count" ~ "Saturday",
-          Night == "sunday_count" ~ "Sunday"
-        ))
-      
-      # Create plot
-      p <- plot_ly(age_night_data, x = ~Night, y = ~Count, color = ~Category, type = 'bar',
-                   colors = c('#1F77B4', '#FF7F0E', '#2CA02C', '#D62728', '#9467BD'))
-      p <- p %>% layout(title = "Accommodation by Night and Age Category",
-                        xaxis = list(title = ""),
-                        yaxis = list(title = "Number of Guests"),
-                        barmode = 'stack')
-      p
-    } else {
-      # Create a simpler plot without age breakdown if no age data
-      night_data <- processed_data()$accommodation_summary %>%
-        summarize(
-          Friday = friday_count,
-          Saturday = saturday_count,
-          Sunday = sunday_count
-        ) %>%
-        pivot_longer(cols = everything(), names_to = "Night", values_to = "Count")
-      
-      p <- plot_ly(night_data, x = ~Night, y = ~Count, type = 'bar',
-                   marker = list(color = c('#5DADE2', '#F4D03F', '#58D68D')))
-      p <- p %>% layout(title = "Accommodation by Night",
-                        xaxis = list(title = ""),
-                        yaxis = list(title = "Number of Guests"))
-      p
-    }
+    # Get summary data
+    acc_summary <- processed_data()$accommodation_summary
+    
+    # Create basic night distribution regardless of age data
+    nights_data <- data.frame(
+      Night = c("Friday", "Saturday", "Sunday"),
+      Count = c(acc_summary$friday_count, acc_summary$saturday_count, acc_summary$sunday_count)
+    )
+    
+    # Create plot
+    p <- plot_ly(nights_data, x = ~Night, y = ~Count, type = 'bar',
+                 marker = list(color = c('#5DADE2', '#F4D03F', '#58D68D')))
+    p <- p %>% layout(title = "Guests Staying Each Night",
+                      xaxis = list(title = ""),
+                      yaxis = list(title = "Number of Guests"))
+    p
   })
   
   output$accommodation_table <- renderDT({
@@ -1439,8 +1433,9 @@ server <- function(input, output, session) {
         )
     }
     
-    # Format for display
+    # Format for display - ensure all cost columns are treated as numeric
     roster_display <- ifc_data %>%
+      mutate(across(matches("cost|charge"), as.numeric)) %>%
       select(
         first_name,
         last_name,
@@ -1458,11 +1453,17 @@ server <- function(input, output, session) {
         total_guest_charge,
         total_host_charge
       ) %>%
-      # Ensure numeric costs
+      # Format currency values
       mutate(
-        total_cost = as.numeric(total_cost),
-        total_guest_charge = as.numeric(total_guest_charge),
-        total_host_charge = as.numeric(total_host_charge)
+        total_cost = if_else(!is.na(total_cost), 
+                             paste0("$", format(round(total_cost, 2), nsmall=2)), 
+                             NA_character_),
+        total_guest_charge = if_else(!is.na(total_guest_charge), 
+                                     paste0("$", format(round(total_guest_charge, 2), nsmall=2)), 
+                                     NA_character_),
+        total_host_charge = if_else(!is.na(total_host_charge), 
+                                    paste0("$", format(round(total_host_charge, 2), nsmall=2)), 
+                                    NA_character_)
       ) %>%
       rename(
         "First Name" = first_name,
@@ -1833,24 +1834,32 @@ server <- function(input, output, session) {
   output$guest_costs_table <- renderDT({
     req(processed_data())
     
-    # Create a cleaner display with pre-calculated costs
+    # Display all staying guests, with all age categories
     costs_display <- processed_data()$guest_costs %>%
-      filter(as.numeric(total_cost) > 0) %>% # Only show guests with costs
+      # Include all guests with any stay
+      filter(is_staying_friday | is_staying_saturday | is_staying_sunday) %>%
+      # Convert all cost columns to numeric
+      mutate(across(matches("cost|charge"), as.numeric)) %>%
+      # Format for display
       mutate(
-        # Ensure numeric cost fields
-        friday_cost = as.numeric(friday_cost),
-        saturday_cost = as.numeric(saturday_cost),
-        sunday_cost = as.numeric(sunday_cost),
-        total_cost = as.numeric(total_cost),
-        total_guest_charge = as.numeric(total_guest_charge),
-        total_host_charge = as.numeric(total_host_charge),
-        # Format for display
-        friday_cost = paste0("$", friday_cost),
-        saturday_cost = paste0("$", saturday_cost),
-        sunday_cost = paste0("$", sunday_cost),
-        total_cost = paste0("$", total_cost),
-        total_guest_charge = paste0("$", total_guest_charge),
-        total_host_charge = paste0("$", total_host_charge)
+        friday_cost = if_else(!is.na(friday_cost), 
+                              paste0("$", format(round(friday_cost, 2), nsmall=2)), 
+                              "$0.00"),
+        saturday_cost = if_else(!is.na(saturday_cost), 
+                                paste0("$", format(round(saturday_cost, 2), nsmall=2)), 
+                                "$0.00"),
+        sunday_cost = if_else(!is.na(sunday_cost), 
+                              paste0("$", format(round(sunday_cost, 2), nsmall=2)), 
+                              "$0.00"),
+        total_cost = if_else(!is.na(total_cost), 
+                             paste0("$", format(round(total_cost, 2), nsmall=2)), 
+                             "$0.00"),
+        total_guest_charge = if_else(!is.na(total_guest_charge), 
+                                     paste0("$", format(round(total_guest_charge, 2), nsmall=2)), 
+                                     "$0.00"),
+        total_host_charge = if_else(!is.na(total_host_charge), 
+                                    paste0("$", format(round(total_host_charge, 2), nsmall=2)), 
+                                    "$0.00")
       ) %>%
       select(
         first_name,
