@@ -233,6 +233,9 @@ count_by_age_category <- function(guests) {
 # Function to calculate accommodation costs with financial breakdown
 # Improved function to calculate accommodation costs with more robust handling
 # Updated function in wedding-rsvp-tracker.R
+# Function to calculate accommodation costs with financial breakdown
+# Improved function to calculate accommodation costs with more robust handling
+# Fixed for accurate host charges for under 21 guests
 calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_path = "charge_rates.csv") {
   # Source our new functions
   source("rates.R")
@@ -247,7 +250,6 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
   possible_sunday_cols <- c("sunday_ifc_stay_1", "sunday_ifc_stay")
   possible_camping_cols <- c("lodgingcamping_weekend", "lodgingcamping_sat_only")
   
-  # Process stay data
   # Process stay data
   guests <- guests %>%
     mutate(
@@ -287,15 +289,6 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
   # Ensure all cost fields are numeric
   guests_with_charges <- ensure_numeric_costs(guests_with_charges)
   
-  # Add vegetarian and special diet flags for meal planning
-  guests_with_charges <- guests_with_charges %>%
-    mutate(
-      is_vegetarian = meal_preferences == "No meat" | 
-        meal_preferences == "Opt-in for fish only",
-      has_special_diet = !is.na(dietary_restrictions) & 
-        dietary_restrictions != ""
-    )
-  
   # Create accommodation summary
   accommodation_summary <- guests_with_charges %>%
     summarize(
@@ -330,6 +323,20 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
   age_category_summary <- summarize_by_age(guests_with_charges, 
                                            c("total_cost", "total_guest_charge", "total_host_charge",
                                              "friday_cost", "saturday_cost", "sunday_cost"))
+  
+  # Add guest counts by age category and night
+  age_category_summary <- age_category_summary %>%
+    left_join(
+      guests_with_charges %>%
+        group_by(age_category) %>%
+        summarize(
+          total_guests = n(),
+          friday_count = sum(is_staying_friday, na.rm = TRUE),
+          saturday_count = sum(is_staying_saturday, na.rm = TRUE),
+          sunday_count = sum(is_staying_sunday, na.rm = TRUE)
+        ),
+      by = "age_category"
+    )
   
   return(list(
     guest_costs = guests_with_charges,

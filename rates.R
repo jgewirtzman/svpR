@@ -1,4 +1,4 @@
-# rates.R - Centralized rate management
+# rates.R - Centralized rate management with explicit handling for under-21 guests
 library(dplyr)
 library(readr)
 library(stringr)
@@ -17,6 +17,10 @@ load_rates <- function(file_path = "charge_rates.csv") {
       str_replace_all(" ", "_") %>%
       str_replace_all("[^a-z0-9_]", "")
     
+    # Clean up night values to use just the day name
+    rates <- rates %>%
+      mutate(night = ifelse(grepl("Sunday", night), "Sunday", night))
+    
     # Ensure numeric columns
     numeric_cols <- c("ifc_rate", "gratuity", "expected_guest_count", 
                       "total_ifc_revenue", "listed_standard_guest_rate", 
@@ -26,10 +30,15 @@ load_rates <- function(file_path = "charge_rates.csv") {
     rates <- rates %>%
       mutate(across(all_of(numeric_cols), as.numeric))
     
+    cat("Loaded rates from file:", file_path, "\n")
+    print(rates)
+    
     return(rates)
   } else {
     message("Rate information file not found: ", file_path)
-    return(create_default_rates())
+    default_rates <- create_default_rates()
+    print(default_rates)
+    return(default_rates)
   }
 }
 
@@ -58,11 +67,11 @@ create_default_rates <- function() {
     ),
     per_guest_charge = c(
       # Friday rates
-      108, 108, 54, 0, 72,
+      108, 0, 0, 0, 72,  # Under 21 guests don't pay
       # Saturday rates
-      172, 172, 86, 0, 90,
+      172, 0, 0, 0, 90,  # Under 21 guests don't pay
       # Sunday rates
-      18, 18, 9, 0, 18
+      18, 0, 0, 0, 18    # Under 21 guests don't pay
     ),
     stringsAsFactors = FALSE
   )
@@ -78,8 +87,7 @@ create_default_rates <- function() {
   return(default_rates)
 }
 
-# Get rate for a specific night/category/field combination
-# Modified get_rate function to handle Sunday label properly
+# Get rate for a specific night/category/field combination with enhanced debugging
 get_rate <- function(rates, night, category, field, default = 0) {
   # Convert inputs to character to prevent issues with factors
   night <- as.character(night)
@@ -100,48 +108,35 @@ get_rate <- function(rates, night, category, field, default = 0) {
   }
   
   if (length(result) == 0 || is.na(result[1])) {
+    # Debug output for missing rates
+    cat("WARNING: No rate found for", night, "/", category, "/", field, "- using default:", default, "\n")
     return(default)
   }
   
   return(as.numeric(result[1]))
 }
 
-# Or alternatively, modify the rate loading function to clean up the labels
-load_rates <- function(file_path = "charge_rates.csv") {
-  # Load rates with error handling
-  if (file.exists(file_path)) {
-    rates <- read_csv(file_path, 
-                      col_types = cols(.default = col_character()),
-                      na = c("", "NA", "N/A"))
-    
-    # Standardize column names
-    names(rates) <- names(rates) %>%
-      str_to_lower() %>%
-      str_replace_all(" ", "_") %>%
-      str_replace_all("[^a-z0-9_]", "")
-    
-    # Clean up night values to use just the day name
-    rates <- rates %>%
-      mutate(night = ifelse(grepl("Sunday", night), "Sunday", night))
-    
-    # Convert numeric columns
-    numeric_cols <- c("ifc_rate", "gratuity", "expected_guest_count", 
-                      "total_ifc_revenue", "listed_standard_guest_rate", 
-                      "listed_standard_guest_meal_rate", "per_guest_charge", 
-                      "total_guest_charge", "total_host_charge")
-    
-    rates <- rates %>%
-      mutate(across(all_of(numeric_cols), as.numeric))
-    
-    return(rates)
-  } else {
-    message("Rate information file not found: ", file_path)
-    return(create_default_rates())
-  }
+# Print debug info for a guest
+print_guest_debug <- function(guest) {
+  cat("Guest:", guest$first_name, guest$last_name, "\n")
+  cat("Age Category:", guest$age_category, "\n")
+  cat("Camping:", guest$is_camping, "\n")
+  cat("Stays: Friday =", guest$is_staying_friday, 
+      "Saturday =", guest$is_staying_saturday, 
+      "Sunday =", guest$is_staying_sunday, "\n")
 }
 
-# Calculate charges for a guest based on their details
+# Calculate charges for a guest based on their details - FIXED for under 21 guests
 calculate_guest_charges <- function(guest, rates) {
+  # Enable this for individual guest debugging
+  debug_mode <- FALSE
+  
+  # Only print debug info for under 21 guests if debugging is on
+  is_under_21 <- grepl("Children|Guests 12-21", guest$age_category)
+  if (debug_mode && is_under_21) {
+    print_guest_debug(guest)
+  }
+  
   # Initialize charge vectors
   nights <- c("Friday", "Saturday", "Sunday")
   stay_flags <- c(guest$is_staying_friday, guest$is_staying_saturday, guest$is_staying_sunday)
@@ -164,17 +159,30 @@ calculate_guest_charges <- function(guest, rates) {
       # Get rates for this night/category
       ifc_rate <- get_rate(rates, nights[i], category, "ifc_rate")
       gratuity <- get_rate(rates, nights[i], category, "gratuity")
-      guest_charge <- get_rate(rates, nights[i], category, "per_guest_charge")
       
-      # Calculate costs
+      # Total IFC cost for this night
       night_costs[i] <- ifc_rate + gratuity
-      night_guest_charges[i] <- guest_charge
+      
+      # For guest charges, use the per_guest_charge directly from rates
+      night_guest_charges[i] <- get_rate(rates, nights[i], category, "per_guest_charge")
+      
+      # EXPLICIT CALCULATION: Host charge is the difference between cost and guest charge
       night_host_charges[i] <- night_costs[i] - night_guest_charges[i]
+      
+      # Debug output for under 21 guests
+      if (debug_mode && is_under_21) {
+        cat(nights[i], "Night Calculation:\n")
+        cat("- IFC Rate:", ifc_rate, "\n")
+        cat("- Gratuity:", gratuity, "\n")
+        cat("- Night Cost:", night_costs[i], "\n")
+        cat("- Guest Charge:", night_guest_charges[i], "\n")
+        cat("- Host Charge:", night_host_charges[i], "\n\n")
+      }
     }
   }
   
-  # Return complete charge info
-  return(list(
+  # Create results list
+  charges <- list(
     friday_cost = night_costs[1],
     saturday_cost = night_costs[2],
     sunday_cost = night_costs[3],
@@ -187,10 +195,20 @@ calculate_guest_charges <- function(guest, rates) {
     total_cost = sum(night_costs),
     total_guest_charge = sum(night_guest_charges),
     total_host_charge = sum(night_host_charges)
-  ))
+  )
+  
+  # Debug output for under 21 guests
+  if (debug_mode && is_under_21) {
+    cat("TOTAL CHARGES:\n")
+    cat("- Total Cost:", charges$total_cost, "\n")
+    cat("- Total Guest Charge:", charges$total_guest_charge, "\n")
+    cat("- Total Host Charge:", charges$total_host_charge, "\n\n")
+  }
+  
+  return(charges)
 }
 
-# Process all guests in a dataset
+# Process all guests in a dataset with extra debugging
 process_guest_charges <- function(guests, rates) {
   # Make sure we have age categories
   if (!"age_category" %in% names(guests)) {
@@ -205,6 +223,14 @@ process_guest_charges <- function(guests, rates) {
     }
   }
   
+  # Output counts by age category for debugging
+  cat("\nProcessing guests by age category:\n")
+  print(table(guests$age_category))
+  
+  # Track under 21 host charges for validation
+  under_21_host_charges <- 0
+  under_21_count <- 0
+  
   # Calculate charges for each guest
   for (i in 1:nrow(guests)) {
     charges <- calculate_guest_charges(guests[i,], rates)
@@ -213,7 +239,46 @@ process_guest_charges <- function(guests, rates) {
     for (field in names(charges)) {
       guests[i, field] <- charges[[field]]
     }
+    
+    # Track under 21 host charges
+    if (grepl("Children|Guests 12-21", guests[i,]$age_category)) {
+      under_21_count <- under_21_count + 1
+      under_21_host_charges <- under_21_host_charges + charges$total_host_charge
+    }
   }
+  
+  # Output under 21 charge summary
+  cat("\nUnder 21 guests:", under_21_count, "\n")
+  cat("Total under 21 host charges:", under_21_host_charges, "\n\n")
+  
+  # Add vegetarian and special diet flags for meal planning
+  guests <- guests %>%
+    mutate(
+      is_vegetarian = meal_preferences == "No meat" | 
+        meal_preferences == "Opt-in for fish only",
+      has_special_diet = !is.na(dietary_restrictions) & 
+        dietary_restrictions != ""
+    )
+  
+  # Verify host charges are correctly calculated
+  verify_host_charges <- function(g) {
+    issues <- sum(g$total_cost != (g$total_guest_charge + g$total_host_charge), na.rm = TRUE)
+    if (issues > 0) {
+      cat("WARNING:", issues, "guests have inconsistent host charges!\n")
+      
+      # Show a sample of problem guests
+      problem_guests <- g %>%
+        filter(total_cost != (total_guest_charge + total_host_charge)) %>%
+        select(first_name, last_name, age_category, is_camping, 
+               total_cost, total_guest_charge, total_host_charge)
+      
+      print(head(problem_guests, 5))
+    } else {
+      cat("All host charges verified correctly.\n")
+    }
+  }
+  
+  verify_host_charges(guests)
   
   return(guests)
 }
