@@ -392,7 +392,7 @@ run_fixed_workflow <- function() {
 # Run the fixed workflow
 run_fixed_workflow()
 
-runApp("app.R")
+#runApp("app.R")
 
 
 #produce summary
@@ -462,7 +462,14 @@ get_rate_for_age <- function(night, age_category) {
 }
 
 
-get_meal_rate <- function(night) {
+get_meal_rate <- function(night, age_category) {
+  # For under 21, the guest meal charge should be 0
+  if (age_category %in% c("Teen 12–21", "Child 5–12", "Infant <5", 
+                          "Guests 12-21 Room", "Children 5-12 Room", "Children <5 Room")) {
+    return(0)  # Under 21 guests don't pay for meals
+  }
+  
+  # For adults, return the standard meal rate
   vals <- rates_clean %>%
     filter(Night == night, !is.na(MealRate)) %>%
     pull(MealRate)
@@ -479,11 +486,11 @@ roster_costs <- roster %>%
     `Saturday Accommodation Cost` = if (is_staying_saturday) get_rate_for_age("Saturday", age_category) else 0,
     `Sunday Accommodation Cost` = if (is_staying_sunday) get_rate_for_age("Sunday", age_category) else 0,
     
-    `Friday Meal Cost` = if (is_staying_friday) get_meal_rate("Friday") else 0,
-    `Saturday Meal Cost` = if (is_staying_saturday) get_meal_rate("Saturday") else 0,
-    `Sunday Meal Cost` = if (is_staying_sunday) get_meal_rate("Sunday") else 0
-  ) %>%
-  ungroup()
+    # Updated to pass the age_category 
+    `Friday Meal Cost` = if (is_staying_friday) get_meal_rate("Friday", age_category) else 0,
+    `Saturday Meal Cost` = if (is_staying_saturday) get_meal_rate("Saturday", age_category) else 0,
+    `Sunday Meal Cost` = if (is_staying_sunday) get_meal_rate("Sunday", age_category) else 0
+  )
 
 
 
