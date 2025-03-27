@@ -495,6 +495,9 @@ roster_costs <- roster %>%
   )
 
 # ── Join party info & email ───────────────
+# Convert the party column in both dataframes to the same type
+roster_costs$party <- as.character(roster_costs$party)
+
 roster_joined <- roster_costs %>%
   left_join(guest_emails, by = "name") %>%
   left_join(parties %>% select(party, party_name, party_email), by = "party") %>%
@@ -585,5 +588,3 @@ final_output <- roster_joined %>%
      envir = new.env()
    )
  }
- 
-
