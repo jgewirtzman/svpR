@@ -421,6 +421,8 @@ guest_emails <- read_csv("wedding_reports/guest_accommodation_costs.csv") %>%
   mutate(name = paste(first_name, last_name)) %>%
   select(name, email = email5)
 
+
+
 # ── Clean up rates table ─────────────────
 rates_clean <- rates %>%
   fill(Night) %>%
@@ -492,9 +494,6 @@ roster_costs <- roster %>%
     `Sunday Meal Cost` = if (is_staying_sunday) get_meal_rate("Sunday", age_category) else 0
   )
 
-
-
-
 # ── Join party info & email ───────────────
 roster_joined <- roster_costs %>%
   left_join(guest_emails, by = "name") %>%
@@ -504,11 +503,20 @@ roster_joined <- roster_costs %>%
     starts_with("Friday"), starts_with("Saturday"), starts_with("Sunday")
   )
 
-# ── Filter to only those who are actually attending anything ──────────────
+# ── MODIFIED: Filter to include all guests staying in each party ────────────
+# First, find all parties that have at least one staying guest
+staying_parties <- roster_joined %>%
+  filter(
+    `Friday Accommodation Cost` > 0 | `Friday Meal Cost` > 0 |
+      `Saturday Accommodation Cost` > 0 | `Saturday Meal Cost` > 0 |
+      `Sunday Accommodation Cost` > 0 | `Sunday Meal Cost` > 0
+  ) %>%
+  distinct(party_name) %>%
+  pull(party_name)
+
+# Then include all guests from those parties, even those with $0 charges
 final_output <- roster_joined %>%
-  filter(`Friday Accommodation Cost` > 0 | `Friday Meal Cost` > 0 |
-           `Saturday Accommodation Cost` > 0 | `Saturday Meal Cost` > 0 |
-           `Sunday Accommodation Cost` > 0 | `Sunday Meal Cost` > 0)
+  filter(party_name %in% staying_parties)
 
 # ── Optional: write to CSV ────────────────
  write_csv(final_output, "individual_guest_costs.csv")

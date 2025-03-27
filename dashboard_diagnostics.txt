@@ -1,5 +1,5 @@
 == DASHBOARD DATA STRUCTURE DIAGNOSIS ==
-Timestamp: 2025-03-26 19:00:59.960103
+Timestamp: 2025-03-26 22:18:07.977832
 
 1. TOP LEVEL COMPONENTS:
 Components available: guests, party_summary, guest_costs, accommodation_summary, age_category_summary, meal_counts, meal_counts_by_age, meal_rosters, ifc_roster, ifc_schedule, data_issues
