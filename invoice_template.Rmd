@@ -1,0 +1,103 @@
+
+---
+title: "Guest Summary and Invoice – Jon & Cyrena’s Wedding"
+output: pdf_document
+params:
+  party_name: NULL
+  guests: NULL
+  arrival_days: NULL
+  total_due: NULL
+  guests_df: NULL
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+```
+**Dear `r paste(params$guests, collapse = " & ")`,**
+We are thrilled to welcome you to Isabella Freedman Jewish Retreat Center for Jon & Cyrena's wedding weekend, June 20–22, 2025. Below, you’ll find important details about your stay, followed by your transaction summary.
+\vspace{1em}
+\hrule
+### Arrival & Departure
+`r if ("Friday" %in% params$arrival_days) {"Friday arrivals begin at 3 PM on Friday, June 20.\n"}`  
+`r if ("Saturday" %in% params$arrival_days) {"Saturday arrivals may check in anytime, starting with 8 AM breakfast.\n"}`  
+Check-in is located in the Main Building, the large red building at the center of campus.
+
+Guests departing Sunday, June 22, may check out anytime after the reception.  
+Guests staying Sunday night must check out by 11 AM on Monday, June 23.
+\vspace{1em}
+\hrule
+### Driving & Parking
+**Address:** 116 Johnson Rd, Falls Village, CT 06031  
+**Parking Areas:**  
+- Main Lot: Next to the office by the main entrance  
+- Barnyard Lot: At the other end of campus  
+- Accessible Parking: Across from the Main Building  
+*Please do not park on the grass or in front of guest buildings.*
+\vspace{1em}
+\hrule
+### Train Transportation
+From NYC: 30 mins from Wassaic Station (Metro-North Harlem Line)  
+**Taxis (no Uber/Lyft):**  
+Watson Livery: 845-464-8178  
+Morning Star Taxi: 845-200-9430  
+Jon & Cyrena will share a carpool sign-up and shuttle info soon.
+\vspace{1em}
+\hrule
+### Outside Food Policy
+One of our mashgichim (kosher supervisors) must pre-approve all food items that enter the designated dining spaces. If you plan to supplement our delicious, healthy, farm-to-table meals, your items must be completely sealed in original packaging. Unapproved food and drinks may be enjoyed anywhere on campus besides our dining spaces.
+
+Your meals and provided and snacks available at all times, but feel free to bring additional snacks or drinks of your preference.
+\vspace{1em}
+\hrule
+### Packing List
+You may want to bring: medications, toiletries, a flashlight, chargers, a water bottle or mug, hiking shoes, a swimsuit, hat, sunglasses, sunblock, a jacket for cool mornings, and a raincoat.
+
+We provide: linens & towels in rooms, A/C + heat, yoga mats, and blankets.
+Snacks are available at all times through the weekend (including between meals)
+\vspace{1em}
+\hrule
+### Transaction Summary
+
+#### `r params$party_name` - Jon & Cyrena’s Wedding Weekend
+
+```{r transaction_table, results='asis'}
+cols_to_show <- c("name")
+if (any(params$guests_df$`Friday Meal Cost` > 0)) cols_to_show <- c(cols_to_show, "Friday Meal Cost")
+if (any(params$guests_df$`Friday Accommodation Cost` > 0)) cols_to_show <- c(cols_to_show, "Friday Accommodation Cost")
+if (any(params$guests_df$`Saturday Meal Cost` > 0)) cols_to_show <- c(cols_to_show, "Saturday Meal Cost")
+if (any(params$guests_df$`Saturday Accommodation Cost` > 0)) cols_to_show <- c(cols_to_show, "Saturday Accommodation Cost")
+if (any(params$guests_df$`Sunday Meal Cost` > 0)) cols_to_show <- c(cols_to_show, "Sunday Meal Cost")
+if (any(params$guests_df$`Sunday Accommodation Cost` > 0)) cols_to_show <- c(cols_to_show, "Sunday Accommodation Cost")
+
+knitr::kable(params$guests_df[, cols_to_show], format = "pipe", digits = 2)
+```
+
+**Total Due:** `$` `r formatC(params$total_due, format = "f", digits = 2)`
+\vspace{1em}
+\hrule
+### Questions
+For the weekend schedule and FAQs, visit the wedding website [withjoy.com/cyrena-and-jon](https://withjoy.com/cyrena-and-jon)  
+Password: `jonandcyrena`
+
+For registration and payment questions, please contact:
+
+**Simone Stallman** at Isabella Freedman — [simone.stallman@adamah.org](mailto:simone.stallman@adamah.org) | [(860) 824-5991](tel:+18608245991)
+
+For all other wedding questions, please reach out to:  
+**Jon** — [jongewirtzman@gmail.com](mailto:jongewirtzman@gmail.com) | [215-817-9072](tel:+12158179072)  
+**Cyrena** — [cyrenakt@gmail.com](mailto:cyrenakt@gmail.com) | [774-271-1144](tel:+17742711144)
+\vspace{1em}
+\hrule
+
+\begin{center}
+\textbf{Adamah}\\
+25 Broadway, Suite 1700, New York, NY 10004 \\
+\href{tel:2126442332}{212.644.2332} \quad | \quad \href{mailto:info@hazon.org}{info@hazon.org}
+\vspace{1em}
+\textbf{Isabella Freedman Jewish Retreat Center}\\
+116 Johnson Road, Falls Village, CT 06031 \\
+\href{tel:2126442332}{(212) 644-2332 ext. 305} \quad | \quad \href{mailto:registrar@hazon.org}{registrar@hazon.org}
+\end{center}
+\begin{center}
+\includegraphics[width=0.5\linewidth]{logo.pdf}
+\end{center}

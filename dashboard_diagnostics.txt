@@ -1,0 +1,59 @@
+== DASHBOARD DATA STRUCTURE DIAGNOSIS ==
+Timestamp: 2025-03-26 08:42:56.371566
+
+1. TOP LEVEL COMPONENTS:
+Components available: guests, party_summary, guest_costs, accommodation_summary, age_category_summary, meal_counts, meal_counts_by_age, meal_rosters, ifc_roster, ifc_schedule, data_issues
+
+2. AGE CATEGORY DATA:
+Age categories in guest_costs: Adults 21+ Room, Children 5-12 Room, Children <5 Room, Guests 12-21 Room
+Age category counts:
+  - Adults 21+ Room : 191
+  - Children <5 Room : 4
+  - Children 5-12 Room : 7
+  - Guests 12-21 Room : 5
+
+age_category_summary structure:
+  Columns: age_category, total_guests, friday_count, saturday_count, sunday_count, total_cost, total_guest_charge, total_host_charge
+  Rows: 4
+
+  Preview of age_category_summary (first 3 rows):
+     # A tibble: 3 × 8
+       age_category       total_guests friday_count saturday_count sunday_count total_cost total_guest_charge total_host_charge
+       <chr>                     <int>        <int>          <int>        <int>      <dbl>              <dbl>             <dbl>
+     1 Adults 21+ Room             191           22             41           15     17391                9698             7693 
+     2 Children 5-12 Room            7            0              3            0       578.                  0              578.
+     3 Children <5 Room              4            0              0            0         0                   0                0 
+
+3. ACCOMMODATION DATA:
+  Columns: total_guests, friday_count, saturday_count, sunday_count, camping_count, standard_lodging_count, total_friday_cost, total_saturday_cost, total_sunday_cost, grand_total_cost, total_friday_guest_charge, total_saturday_guest_charge, total_sunday_guest_charge, grand_total_guest_charge, total_friday_host_charge, total_saturday_host_charge, total_sunday_host_charge, grand_total_host_charge
+   friday_count = 22
+   saturday_count = 46
+   sunday_count = 15
+
+4. IFC ROSTER DATA:
+  ifc_roster has 46 rows
+   total_cost data type: numeric
+   total_guest_charge data type: numeric
+   total_host_charge data type: numeric
+
+  Found 5 guests under 21
+     total_cost for under 21: Range 192.5 to 247.5 , Mean 214.5
+     total_guest_charge for under 21: Range 0 to 0 , Mean 0
+     total_host_charge for under 21: Range 192.5 to 247.5 , Mean 214.5
+
+  Sample of under 21 guests:
+     # A tibble: 3 × 6
+       first_name last_name age_category       total_cost total_guest_charge total_host_charge
+       <chr>      <chr>     <chr>                   <dbl>              <dbl>             <dbl>
+     1 Ava        Dillon    Guests 12-21 Room        248.                  0              248.
+     2 Owen       Dillon    Guests 12-21 Room        248.                  0              248.
+     3 Griffin    Rais      Children 5-12 Room       192.                  0              192.
+
+5. COST CALCULATOR DATA:
+   total_cost data type: numeric
+   total_guest_charge data type: numeric
+   total_host_charge data type: numeric
+  Total guests staying: 46
+  Under 21 guests staying: 5
+
+== END DIAGNOSIS ==

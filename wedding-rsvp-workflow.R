@@ -393,3 +393,169 @@ run_fixed_workflow <- function() {
 run_fixed_workflow()
 
 runApp("app.R")
+
+
+#produce summary
+# Load libraries
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(readr)
+
+# ── Load data ─────────────────────────────
+roster <- read_csv("wedding_reports/ifc_roster.csv")
+roster <- roster %>%
+  mutate(
+    age_category = case_when(
+      str_detect(age_category, "21\\+") ~ "Adult 21+",
+      str_detect(age_category, "12-21") ~ "Teen 12–21",
+      str_detect(age_category, "5-12") ~ "Child 5–12",
+      str_detect(age_category, "<5") ~ "Infant <5",
+      TRUE ~ age_category
+    )
+  )
+
+parties <- read_csv("wedding_reports/party_summary.csv")
+rates <- read_csv("charge_rates.csv")
+guest_emails <- read_csv("wedding_reports/guest_accommodation_costs.csv") %>%
+  mutate(name = paste(first_name, last_name)) %>%
+  select(name, email = email5)
+
+# ── Clean up rates table ─────────────────
+rates_clean <- rates %>%
+  fill(Night) %>%
+  select(Night, Category,
+         AccommodationRate = `Listed Standard Guest Rate`,
+         MealRate = `Listed Standard Guest Meal Rate`)
+
+# Remove unnecessary labels
+rates_clean$Night <- str_replace(rates_clean$Night, " \\(no meals option\\)", "")
+
+# Build accommodation rate lookup by night and age category
+accommodation_rates <- rates_clean %>%
+  filter(str_detect(Category, "Room|Camping")) %>%
+  mutate(age_category = case_when(
+    str_detect(Category, "21\\+") ~ "Adult 21+",
+    str_detect(Category, "12-21") ~ "Teen 12–21",
+    str_detect(Category, "5-12") ~ "Child 5–12",
+    str_detect(Category, "<5") ~ "Infant <5",
+    TRUE ~ "Unknown"
+  )) %>%
+  select(Night, age_category, AccommodationRate)
+
+
+# ── Helper functions to get rates ────────
+get_accommodation_rate <- function(night) {
+  vals <- rates_clean %>%
+    filter(Night == night, str_detect(Category, "Room|Camping")) %>%
+    pull(AccommodationRate)
+  if (length(vals) == 0) return(0)
+  max(vals, na.rm = TRUE)
+}
+
+get_rate_for_age <- function(night, age_category) {
+  rate <- accommodation_rates %>%
+    filter(Night == night, age_category == !!age_category) %>%
+    pull(AccommodationRate)
+  if (length(rate) == 0) return(0)
+  return(rate[1])
+}
+
+
+get_meal_rate <- function(night) {
+  vals <- rates_clean %>%
+    filter(Night == night, !is.na(MealRate)) %>%
+    pull(MealRate)
+  if (length(vals) == 0) return(0)
+  max(vals, na.rm = TRUE)
+}
+
+# ── Calculate guest-level costs ───────────
+roster_costs <- roster %>%
+  mutate(name = paste(first_name, last_name)) %>%
+  rowwise() %>%
+  mutate(
+    `Friday Accommodation Cost` = if (is_staying_friday) get_rate_for_age("Friday", age_category) else 0,
+    `Saturday Accommodation Cost` = if (is_staying_saturday) get_rate_for_age("Saturday", age_category) else 0,
+    `Sunday Accommodation Cost` = if (is_staying_sunday) get_rate_for_age("Sunday", age_category) else 0,
+    
+    `Friday Meal Cost` = if (is_staying_friday) get_meal_rate("Friday") else 0,
+    `Saturday Meal Cost` = if (is_staying_saturday) get_meal_rate("Saturday") else 0,
+    `Sunday Meal Cost` = if (is_staying_sunday) get_meal_rate("Sunday") else 0
+  ) %>%
+  ungroup()
+
+
+
+
+# ── Join party info & email ───────────────
+roster_joined <- roster_costs %>%
+  left_join(guest_emails, by = "name") %>%
+  left_join(parties %>% select(party, party_name, party_email), by = "party") %>%
+  select(
+    name, email, party_name, party_email,
+    starts_with("Friday"), starts_with("Saturday"), starts_with("Sunday")
+  )
+
+# ── Filter to only those who are actually attending anything ──────────────
+final_output <- roster_joined %>%
+  filter(`Friday Accommodation Cost` > 0 | `Friday Meal Cost` > 0 |
+           `Saturday Accommodation Cost` > 0 | `Saturday Meal Cost` > 0 |
+           `Sunday Accommodation Cost` > 0 | `Sunday Meal Cost` > 0)
+
+# ── Optional: write to CSV ────────────────
+ write_csv(final_output, "individual_guest_costs.csv")
+
+# View in RStudio
+#View(final_output)
+ 
+ ##make invoices
+ 
+ 
+ # Load required libraries
+ library(dplyr)
+ library(readr)
+ library(rmarkdown)
+ 
+ # Load guest cost data
+ guests <- read_csv("individual_guest_costs.csv")
+ 
+ # Prepare party-level summaries
+ party_groups <- guests %>%
+   group_by(party_name, party_email) %>%
+   summarise(
+     guests = list(name),
+     arrival_days = list(
+       unique(c(
+         if (any(`Friday Accommodation Cost` > 0 | `Friday Meal Cost` > 0)) "Friday",
+         if (any(`Saturday Accommodation Cost` > 0 | `Saturday Meal Cost` > 0)) "Saturday"
+       ))
+     ),
+     guests_df = list(cur_data_all()),
+     total_due = sum(`Friday Meal Cost` + `Friday Accommodation Cost` +
+                       `Saturday Meal Cost` + `Saturday Accommodation Cost` +
+                       `Sunday Meal Cost` + `Sunday Accommodation Cost`),
+     .groups = "drop"
+   )
+ 
+ # Loop and render PDF for each party
+ dir.create("invoices", showWarnings = FALSE)
+ 
+ for (i in 1:nrow(party_groups)) {
+   this <- party_groups[i, ]
+   
+   rmarkdown::render(
+     input = "invoice_template.Rmd",
+     output_file = paste0("invoices/", make.names(this$party_name), "_invoice.pdf"),
+     params = list(
+       party_name = this$party_name,
+       guests = this$guests[[1]],
+       arrival_days = this$arrival_days[[1]],
+       guests_df = this$guests_df[[1]],
+       total_due = this$total_due
+     ),
+     envir = new.env()
+   )
+ }
+ 
+

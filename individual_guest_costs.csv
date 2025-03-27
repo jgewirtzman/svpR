@@ -1,0 +1,43 @@
+name,email,party_name,party_email,friday_dinner,friday_cost,friday_guest_charge,friday_host_charge,Friday Accommodation Cost,Friday Meal Cost,saturday_breakfast,saturday_lunch,saturday_dinner,saturday_cost,saturday_guest_charge,saturday_host_charge,Saturday Accommodation Cost,Saturday Meal Cost,sunday_breakfast,sunday_lunch,sunday_dinner,sunday_cost,sunday_guest_charge,sunday_host_charge,Sunday Accommodation Cost,Sunday Meal Cost
+Marc Thibodeau,NA,Marc Thibodeau & Abbie Averbach,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Abbie Averbach,NA,Marc Thibodeau & Abbie Averbach,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Danny Thibodeau,celestina.thibodeau@yahoo.com,Danny Thibodeau & Tina Thibodeau,celestina.thibodeau@yahoo.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Tina Thibodeau,NA,Danny Thibodeau & Tina Thibodeau,celestina.thibodeau@yahoo.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Lee Shionis,l.shionis@comcast.net,Lee Shionis,l.shionis@comcast.net,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Amy Gewirtzman,amygewirtzman@gmail.com,Amy Gewirtzman,amygewirtzman@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Steven Gewirtzman,drgew@ail.com,Steven Gewirtzman,drgew@ail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Hanna Cohen,hannacohenpsyd@gmail.com,Hanna Cohen & Don Cohen,hannacohenpsyd@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Don Cohen,NA,Hanna Cohen & Don Cohen,hannacohenpsyd@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Aaron Schwartzbaum,aaron.schwartzbaum@gmail.com,Aaron Schwartzbaum & Tamar Hoffman,aaron.schwartzbaum@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Tamar Hoffman,NA,Aaron Schwartzbaum & Tamar Hoffman,aaron.schwartzbaum@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Lauren Dillon,ldillon123@comcast.net,Dillon Family (4 guests),ldillon123@comcast.net,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Michael Dillon,NA,Dillon Family (4 guests),ldillon123@comcast.net,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Ava Dillon,NA,Dillon Family (4 guests),ldillon123@comcast.net,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,0,247.5,0,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Owen Dillon,NA,Dillon Family (4 guests),ldillon123@comcast.net,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,0,247.5,0,36,TRUE,TRUE,FALSE,0,0,0,0,0
+ettie rais,ettie.rais@gmail.com,ettie rais,ettie.rais@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Gail Fisher,quentin.fisher@verizon.net,Gail Fisher & Quentin Fisher,quentin.fisher@verizon.net,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Quentin Fisher,NA,Gail Fisher & Quentin Fisher,quentin.fisher@verizon.net,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Michael Rais,mimo@nyc1.com,Rais Family (3 guests),mimo@nyc1.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Monika Rais,NA,Rais Family (3 guests),mimo@nyc1.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Griffin Rais,NA,Rais Family (3 guests),mimo@nyc1.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,192.5,0,192.5,0,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Betsy Lewinson,NA,Betsy Lewinson & Franklin Lewinson,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Ron Meyers,NA,Ron Meyers & David Baral,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+David Baral,NA,Ron Meyers & David Baral,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Matt Dumbroff,mcdumbroff@gmail.com,Dumbroff Family (4 guests),mcdumbroff@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Anne Chandaprong,NA,Dumbroff Family (4 guests),mcdumbroff@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Max Dumbroff,NA,Dumbroff Family (4 guests),mcdumbroff@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,192.5,0,192.5,0,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Mila Dumbroff,NA,Dumbroff Family (4 guests),mcdumbroff@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,192.5,0,192.5,0,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Carter Merenstein,jenniacullen@gmail.com,Carter Merenstein & Jenni Cullen,jenniacullen@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Jenni Cullen,NA,Carter Merenstein & Jenni Cullen,jenniacullen@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Kale Doughty,kaledough@gmail.com,Kale Doughty,kaledough@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Clara Obstfeld,clara.obstfeld@gmail.com,Clara Obstfeld,clara.obstfeld@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Sylvia Brown,ggandsyl@gmail.com,Sylvia Brown & Gordon Getzinger,ggandsyl@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Gordon Getzinger,NA,Sylvia Brown & Gordon Getzinger,ggandsyl@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Sarah Eltinge,rnicholas@cunninghamfamily.net,Sarah Eltinge & Nick Cunningham,rnicholas@cunninghamfamily.net,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Nick Cunningham,NA,Sarah Eltinge & Nick Cunningham,rnicholas@cunninghamfamily.net,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Sophie Duncan,sophiesduncan@gmail.com,Sophie Duncan & Brian Remlinger,sophiesduncan@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Brian Remlinger,b.a.remlinger@gmail.com,Sophie Duncan & Brian Remlinger,sophiesduncan@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Elizabeth Forbes,forbeselizabeth.s@gmail.com,Elizabeth Forbes,forbeselizabeth.s@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Janey Lienau,janeyrosebud@gmail.com,Janey Lienau & Max Phillips,janeyrosebud@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Max Phillips,NA,Janey Lienau & Max Phillips,janeyrosebud@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Simone Stallman,simone.stallman@adamah.org,Simone Stallman,simone.stallman@adamah.org,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
