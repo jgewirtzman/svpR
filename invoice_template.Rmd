@@ -8,6 +8,7 @@ params:
   arrival_days: NULL
   total_due: NULL
   guests_df: NULL
+  staying_sunday: NULL
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
@@ -69,7 +70,15 @@ if (any(params$guests_df$`Saturday Accommodation Cost` > 0)) cols_to_show <- c(c
 if (any(params$guests_df$`Sunday Meal Cost` > 0)) cols_to_show <- c(cols_to_show, "Sunday Meal Cost")
 if (any(params$guests_df$`Sunday Accommodation Cost` > 0)) cols_to_show <- c(cols_to_show, "Sunday Accommodation Cost")
 
-knitr::kable(params$guests_df[, cols_to_show], format = "pipe", digits = 2)
+knitr::kable(params$guests_df[, cols_to_show], format = "pipe", digits = 2,
+             col.names = c("Name", tail(cols_to_show, length(cols_to_show)-1)))
+```
+
+```{r sunday_note, results='asis'}
+# Check if any guests in this party are staying Sunday night
+if (params$staying_sunday) {
+  cat("**Note:** Your Sunday stay is reserved at no additional charge.")
+}
 ```
 
 **Total Due:** `$` `r formatC(params$total_due, format = "f", digits = 2)`

@@ -556,18 +556,31 @@ final_output <- roster_joined %>%
  # Loop and render PDF for each party
  dir.create("invoices", showWarnings = FALSE)
  
+ # Inside your for-loop that renders each invoice
  for (i in 1:nrow(party_groups)) {
    this <- party_groups[i, ]
    
+   # Get the party name
+   party_name <- this$party_name
+   
+   # Check if any guests in this party are staying Sunday
+   # You'll need to modify this to match how your data is structured
+   guests_in_party <- roster %>% 
+     filter(party == party_name | 
+              paste(first_name, last_name) %in% this$guests[[1]])
+   
+   staying_sunday <- any(guests_in_party$is_staying_sunday)
+   
    rmarkdown::render(
      input = "invoice_template.Rmd",
-     output_file = paste0("invoices/", make.names(this$party_name), "_invoice.pdf"),
+     output_file = paste0("invoices/", make.names(party_name), "_invoice.pdf"),
      params = list(
-       party_name = this$party_name,
+       party_name = party_name,
        guests = this$guests[[1]],
        arrival_days = this$arrival_days[[1]],
        guests_df = this$guests_df[[1]],
-       total_due = this$total_due
+       total_due = this$total_due,
+       staying_sunday = staying_sunday  # Add this parameter
      ),
      envir = new.env()
    )
