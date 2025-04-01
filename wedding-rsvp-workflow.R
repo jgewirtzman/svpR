@@ -583,8 +583,53 @@ final_output <- roster_joined %>%
        arrival_days = this$arrival_days[[1]],
        guests_df = this$guests_df[[1]],
        total_due = this$total_due,
-       staying_sunday = staying_sunday  # Add this parameter
+       staying_sunday = staying_sunday  # Fixed the typo here
      ),
      envir = new.env()
    )
  }
+ 
+ # Invoice Cleanup Script
+ # This script simply checks the invoices/sent folder and removes any duplicates from the main invoices folder
+ 
+ # Function to clean up invoice duplicates
+ cleanup_invoices <- function() {
+   # Create sent directory if it doesn't exist
+   dir.create("invoices/sent", recursive = TRUE, showWarnings = FALSE)
+   
+   # Check if the main invoices folder exists
+   if (!dir.exists("invoices")) {
+     cat("No invoices folder found. Nothing to clean up.\n")
+     return(NULL)
+   }
+   
+   # Get list of already sent invoices
+   sent_invoices <- list.files("invoices/sent", pattern = "*.pdf", full.names = FALSE)
+   
+   # Check for duplicates in the main invoices directory
+   main_invoices <- list.files("invoices", pattern = "*.pdf", full.names = FALSE)
+   
+   # Find which invoices in the main folder exist in the sent folder
+   duplicates <- main_invoices[main_invoices %in% sent_invoices]
+   
+   # If there are duplicates, remove them
+   if (length(duplicates) > 0) {
+     cat("Found", length(duplicates), "duplicate invoices that have already been sent.\n")
+     
+     for (invoice in duplicates) {
+       # Full path to the duplicate invoice
+       invoice_path <- file.path("invoices", invoice)
+       
+       # Remove the file
+       file.remove(invoice_path)
+       cat("Removed duplicate:", invoice, "\n")
+     }
+     
+     cat("Cleanup complete. Removed", length(duplicates), "duplicate invoices.\n")
+   } else {
+     cat("No duplicate invoices found. Nothing to clean up.\n")
+   }
+ }
+ 
+ # Run the cleanup
+ cleanup_invoices()
