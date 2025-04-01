@@ -23,8 +23,8 @@ We are thrilled to welcome you to Isabella Freedman Jewish Retreat Center for Jo
 `r if ("Saturday" %in% params$arrival_days) {"Saturday arrivals may check in anytime, starting with 8 AM breakfast.\n"}`  
 Check-in is located in the Main Building, the large red building at the center of campus.
 
-Guests departing Sunday, June 22, may check out anytime after the reception.  
-Guests staying Sunday night must check out by 11 AM on Monday, June 23.
+Guests departing Sunday, June 22, may check out in the morning or after the reception.  
+Guests staying Sunday night must check out by 10 AM on Monday, June 23.
 \vspace{1em}
 \hrule
 ### Driving & Parking

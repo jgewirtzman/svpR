@@ -3,7 +3,7 @@ Marc Thibodeau,NA,Marc Thibodeau & Abbie Averbach,NA,TRUE,247.5,108,139.5,72,36,
 Abbie Averbach,NA,Marc Thibodeau & Abbie Averbach,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Danny Thibodeau,celestina.thibodeau@yahoo.com,Danny Thibodeau & Tina Thibodeau,celestina.thibodeau@yahoo.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Tina Thibodeau,NA,Danny Thibodeau & Tina Thibodeau,celestina.thibodeau@yahoo.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
-Lee Shionis,l.shionis@comcast.net,Lee Shionis,l.shionis@comcast.net,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Lee Shionis,l.shionis@comcast.net,Lee Shionis,l.shionis@comcast.net,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Amy Gewirtzman,amygewirtzman@gmail.com,Amy Gewirtzman & Steven Gewirtzman,amygewirtzman@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Steven Gewirtzman,drgew@ail.com,Amy Gewirtzman & Steven Gewirtzman,amygewirtzman@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Hanna Cohen,hannacohenpsyd@gmail.com,Hanna Cohen & Don Cohen,hannacohenpsyd@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
@@ -24,7 +24,8 @@ Irving Gewirtzman,jackiegewirtzman@gmail.com,Irving Gewirtzman & Francoise Gewir
 Francoise Gewirtzman,NA,Irving Gewirtzman & Francoise Gewirtzman,jackiegewirtzman@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
 Emil Gewirtzman,Emileggg@gmail.com,Emil Gewirtzman & Nancy Nieves,Emileggg@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
 Nancy Nieves,NA,Emil Gewirtzman & Nancy Nieves,Emileggg@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
-Betsy Lewinson,NA,Betsy Lewinson & Franklin Lewinson,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Betsy Lewinson,betsysewitup@live.com,Betsy Lewinson & Franklin Lewinson,betsysewitup@live.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Franklin Lewinson,NA,Betsy Lewinson & Franklin Lewinson,betsysewitup@live.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Ron Meyers,NA,Ron Meyers & David Baral,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 David Baral,NA,Ron Meyers & David Baral,NA,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Matt Dumbroff,mcdumbroff@gmail.com,Dumbroff Family (4 guests),mcdumbroff@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
@@ -41,6 +42,8 @@ Sarah Eltinge,rnicholas@cunninghamfamily.net,Sarah Eltinge & Nick Cunningham,rni
 Nick Cunningham,NA,Sarah Eltinge & Nick Cunningham,rnicholas@cunninghamfamily.net,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
 Sophie Duncan,sophiesduncan@gmail.com,Sophie Duncan & Brian Remlinger,sophiesduncan@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
 Brian Remlinger,b.a.remlinger@gmail.com,Sophie Duncan & Brian Remlinger,sophiesduncan@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
+Kristy Ferraro,kristy.m.ferraro@gmail.com,Kristy Ferraro & Tony Ferraro,kristy.m.ferraro@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
+Tony Ferraro,NA,Kristy Ferraro & Tony Ferraro,kristy.m.ferraro@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Elizabeth Forbes,forbeselizabeth.s@gmail.com,Elizabeth Forbes,forbeselizabeth.s@gmail.com,TRUE,247.5,108,139.5,72,36,TRUE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,TRUE,119.9,18,101.9,0,0
 Janey Lienau,janeyrosebud@gmail.com,Janey Lienau & Max Phillips,janeyrosebud@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
 Max Phillips,NA,Janey Lienau & Max Phillips,janeyrosebud@gmail.com,FALSE,0,0,0,0,0,FALSE,TRUE,TRUE,247.5,172,75.5,136,36,TRUE,TRUE,FALSE,0,0,0,0,0
