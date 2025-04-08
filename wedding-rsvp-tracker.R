@@ -74,24 +74,22 @@ find_column_by_pattern <- function(df, patterns) {
 }
 
 # Function to generate party-level summary
+# Function to generate party-level summary
+# Function to generate party-level summary
 generate_party_summary <- function(guests) {
-  # Find the email column - handle cases where email might have different names
-  email_cols <- grep("email", names(guests), ignore.case = TRUE, value = TRUE)
-  
-  # Check if we found any email columns
-  if (length(email_cols) == 0) {
+  # Check if we found any email column
+  if (!"email" %in% names(guests)) {
     warning("No email column found in the data")
-    guests$email_column <- NA  # Create a dummy column
-    email_col_name <- "email_column"
-  } else {
-    # Use the first email column found
-    email_col_name <- email_cols[1]
-    # Rename it to a standard name for use in the function
-    guests$email_column <- guests[[email_col_name]]
+    guests$email <- NA  # Create a dummy column
   }
   
+  # First, filter out rows with NA or empty names before grouping
+  guests_with_names <- guests %>%
+    filter(!is.na(first_name) & first_name != "" | 
+             !is.na(last_name) & last_name != "")
+  
   # Create descriptive party names based on guest names
-  guests <- guests %>%
+  guests_with_names <- guests_with_names %>%
     group_by(party) %>%
     mutate(
       party_name = case_when(
@@ -102,12 +100,24 @@ generate_party_summary <- function(guests) {
     ) %>%
     ungroup()
   
+  # Now create a mapping from party to party_name
+  party_names <- guests_with_names %>%
+    group_by(party) %>%
+    summarize(party_name = first(party_name))
+  
+  # Join this back to the original guests data
+  guests <- guests %>%
+    left_join(party_names, by = "party")
+  
   # Group by party and get email
   party_summary <- guests %>%
+    # Filter out rows with NA or empty names
+    filter(!is.na(first_name) & first_name != "" | 
+             !is.na(last_name) & last_name != "") %>%
     group_by(party) %>%
     summarize(
       party_name = first(party_name),
-      party_email = first(na.omit(email_column)),
+      party_email = first(na.omit(email)),  # Use the consolidated email column
       total_guests = n(),
       guest_names = paste(paste(first_name, last_name), collapse = ", "),
       wedding_attending = sum(wedding_rsvp == "Joyfully Accept", na.rm = TRUE),
@@ -265,7 +275,7 @@ calculate_accommodation_costs <- function(guests, age_data_path = NULL, rates_pa
   }
   
   # First determine stay information
-  possible_friday_cols <- c("friday_ifc_stay_1", "ifc_stay_1", "friday_ifc_stay")
+  possible_friday_cols <- c("friday_ifc_stay_1", "friday_ifc_stay")
   possible_saturday_cols <- c("saturday_ifc_stay_1", "saturday_ifc_stay", "ifc_stay_1")
   possible_sunday_cols <- c("sunday_ifc_stay_1", "sunday_ifc_stay")
   possible_camping_cols <- c("lodgingcamping_weekend", "lodgingcamping_sat_only")
@@ -1136,6 +1146,29 @@ generate_wedding_reports <- function(file_path, age_data_path = "Wedding Budget 
     filter(!((is.na(first_name) | first_name == "") & 
                (is.na(last_name) | last_name == "")) | 
              wedding_rsvp == "Joyfully Accept")
+  
+  # After reading the CSV
+  guests <- read_guest_list(file_path)
+  
+  # Identify email columns
+  email_cols <- grep("email", names(guests), ignore.case = TRUE)
+  
+  # Create a single consolidated email column
+  guests$email_consolidated <- NA
+  for (i in 1:nrow(guests)) {
+    emails <- guests[i, email_cols]
+    valid_emails <- emails[!is.na(emails) & emails != ""]
+    if (length(valid_emails) > 0) {
+      guests$email_consolidated[i] <- valid_emails[1]
+    }
+  }
+  
+  # Replace the original email column
+  guests$email <- guests$email_consolidated
+  guests$email_consolidated <- NULL
+  
+  # Optionally remove the duplicate email columns
+  guests <- guests[, !grepl("^email[0-9]+$", names(guests))]
   
   # Generate party summary
   party_summary <- generate_party_summary(guests)

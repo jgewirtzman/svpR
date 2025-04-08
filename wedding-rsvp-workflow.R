@@ -419,7 +419,7 @@ parties <- read_csv("wedding_reports/party_summary.csv")
 rates <- read_csv("charge_rates.csv")
 guest_emails <- read_csv("wedding_reports/guest_accommodation_costs.csv") %>%
   mutate(name = paste(first_name, last_name)) %>%
-  select(name, email = email5)
+  select(name, email)  # Just use 'email' instead of 'email5'
 
 
 
@@ -542,7 +542,8 @@ final_output <- roster_joined %>%
  party_groups <- guests %>%
    group_by(party_name, party_email) %>%
    summarise(
-     guests = list(name),
+     # Filter out NA values in name list
+     guests = list(name[!is.na(name) & name != "NA NA"]),
      arrival_days = list(
        unique(c(
          if (any(`Friday Accommodation Cost` > 0 | `Friday Meal Cost` > 0)) "Friday",
