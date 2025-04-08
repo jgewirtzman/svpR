@@ -1,0 +1,26 @@
+Party: Elizabeth Forbes
+Guests: Elizabeth Forbes
+Email: forbeselizabeth.s@gmail.com
+Total Guests: 1
+Total Guest Charge: $298
+
+Accommodation Summary:
+- Friday night: 1 guests ($108)
+- Saturday night: 1 guests ($172)
+- Sunday night: 1 guests ($18)
+- Standard lodging: 1 guests
+
+Guest Charge Breakdown:
+- Friday: $108
+- Saturday: $172
+- Sunday: $18
+
+Individual Guest Details:
+1. Elizabeth Forbes
+   - Staying: Friday, Saturday, Sunday
+   - Accommodation Type: Standard Lodging
+   - Friday Guest Charge: $108
+   - Saturday Guest Charge: $172
+   - Sunday Guest Charge: $18
+   - Total Guest Charge: $298
+

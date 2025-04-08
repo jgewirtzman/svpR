@@ -1,0 +1,23 @@
+Party: Lauren Maunus
+Guests: Lauren Maunus
+Email: laurenmaunus@gmail.com
+Total Guests: 1
+Total Guest Charge: $162
+
+Accommodation Summary:
+- Friday night: 1 guests ($72)
+- Saturday night: 1 guests ($90)
+- Camping: 1 guests
+
+Guest Charge Breakdown:
+- Friday: $72
+- Saturday: $90
+
+Individual Guest Details:
+1. Lauren Maunus
+   - Staying: Friday, Saturday
+   - Accommodation Type: Camping
+   - Friday Guest Charge: $72
+   - Saturday Guest Charge: $90
+   - Total Guest Charge: $162
+

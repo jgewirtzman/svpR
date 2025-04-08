@@ -1,0 +1,26 @@
+Party: Irving Gewirtzman & Francoise Gewirtzman
+Guests: Irving Gewirtzman, Francoise Gewirtzman
+Email: jackiegewirtzman@gmail.com
+Total Guests: 2
+Total Guest Charge: $344
+
+Accommodation Summary:
+- Saturday night: 2 guests ($344)
+- Standard lodging: 2 guests
+
+Guest Charge Breakdown:
+- Saturday: $344
+
+Individual Guest Details:
+1. Irving Gewirtzman
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
+
+2. Francoise Gewirtzman
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
+

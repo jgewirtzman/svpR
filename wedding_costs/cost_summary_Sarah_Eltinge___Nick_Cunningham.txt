@@ -1,0 +1,26 @@
+Party: Sarah Eltinge & Nick Cunningham
+Guests: Sarah Eltinge, Nick Cunningham
+Email: rnicholas@cunninghamfamily.net
+Total Guests: 2
+Total Guest Charge: $344
+
+Accommodation Summary:
+- Saturday night: 2 guests ($344)
+- Standard lodging: 2 guests
+
+Guest Charge Breakdown:
+- Saturday: $344
+
+Individual Guest Details:
+1. Sarah Eltinge
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
+
+2. Nick Cunningham
+   - Staying: Saturday
+   - Accommodation Type: Standard Lodging
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $172
+

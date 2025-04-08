@@ -1,0 +1,30 @@
+Party: Sylvia Brown & Gordon Getzinger
+Guests: Sylvia Brown, Gordon Getzinger
+Email: ggandsyl@gmail.com
+Total Guests: 2
+Total Guest Charge: $560
+
+Accommodation Summary:
+- Friday night: 2 guests ($216)
+- Saturday night: 2 guests ($344)
+- Standard lodging: 2 guests
+
+Guest Charge Breakdown:
+- Friday: $216
+- Saturday: $344
+
+Individual Guest Details:
+1. Sylvia Brown
+   - Staying: Friday, Saturday
+   - Accommodation Type: Standard Lodging
+   - Friday Guest Charge: $108
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $280
+
+2. Gordon Getzinger
+   - Staying: Friday, Saturday
+   - Accommodation Type: Standard Lodging
+   - Friday Guest Charge: $108
+   - Saturday Guest Charge: $172
+   - Total Guest Charge: $280
+
