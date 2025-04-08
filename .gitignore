@@ -8,7 +8,6 @@ wedding_costs/
 wedding_emails/
 wedding_reports/
 
-.csv
-.pdf
-.txt
-.png
+*.csv
+*.txt
+*.pdf
