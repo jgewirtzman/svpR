@@ -61,7 +61,8 @@ Snacks are available at all times through the weekend (including between meals)
 
 #### `r params$party_name` - Jon & Cyrena’s Wedding Weekend
 
-This invoice summarizes your stay and meal costs. Specific rooms will be assigned by Jon and Cyrena closer to the wedding date, but feel free to reach out to them with specific requests!
+
+This invoice confirms your room reservation, and summarizes your stay and meal costs. Specific rooms will be assigned by Jon and Cyrena closer to the wedding date, but feel free to reach out to them with specific requests!
 
 ```{r transaction_table, results='asis'}
 cols_to_show <- c("name")
