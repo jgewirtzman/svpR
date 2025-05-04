@@ -404,16 +404,16 @@ library(readr)
 
 # ── Load data ─────────────────────────────
 roster <- read_csv("wedding_reports/ifc_roster.csv")
-roster <- roster %>%
-  mutate(
-    age_category = case_when(
-      str_detect(age_category, "21\\+") ~ "Adult 21+",
-      str_detect(age_category, "12-21") ~ "Teen 12–21",
-      str_detect(age_category, "5-12") ~ "Child 5–12",
-      str_detect(age_category, "<5") ~ "Infant <5",
-      TRUE ~ age_category
-    )
-  )
+# roster <- roster %>%
+#   mutate(
+#     age_category = case_when(
+#       str_detect(age_category, "21\\+") ~ "Adult 21+",
+#       str_detect(age_category, "12-21") ~ "Teen 12–21",
+#       str_detect(age_category, "5-12") ~ "Child 5–12",
+#       str_detect(age_category, "<5") ~ "Infant <5",
+#       TRUE ~ age_category
+#     )
+#   )
 
 parties <- read_csv("wedding_reports/party_summary.csv")
 rates <- read_csv("charge_rates.csv")
@@ -436,13 +436,7 @@ rates_clean$Night <- str_replace(rates_clean$Night, " \\(no meals option\\)", ""
 # Build accommodation rate lookup by night and age category
 accommodation_rates <- rates_clean %>%
   filter(str_detect(Category, "Room|Camping")) %>%
-  mutate(age_category = case_when(
-    str_detect(Category, "21\\+") ~ "Adult 21+",
-    str_detect(Category, "12-21") ~ "Teen 12–21",
-    str_detect(Category, "5-12") ~ "Child 5–12",
-    str_detect(Category, "<5") ~ "Infant <5",
-    TRUE ~ "Unknown"
-  )) %>%
+  mutate(age_category = Category) %>%  # Use the full category name
   select(Night, age_category, AccommodationRate)
 
 
@@ -466,8 +460,7 @@ get_rate_for_age <- function(night, age_category) {
 
 get_meal_rate <- function(night, age_category) {
   # For under 21, the guest meal charge should be 0
-  if (age_category %in% c("Teen 12–21", "Child 5–12", "Infant <5", 
-                          "Guests 12-21 Room", "Children 5-12 Room", "Children <5 Room")) {
+  if (age_category %in% c("Guests 12-21 Room", "Children 5-12 Room", "Children <5 Room")) {
     return(0)  # Under 21 guests don't pay for meals
   }
   
