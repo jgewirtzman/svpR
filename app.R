@@ -462,7 +462,10 @@ ui <- dashboardPage(
                                     tableOutput("friday_dinner_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Friday Dinner", class = "tab-header"),
-                                    DTOutput("friday_dinner_restrictions")
+                                    DTOutput("friday_dinner_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Friday Dinner", class = "tab-header"),
+                                    tableOutput("friday_dinner_preferences")
                              )
                            )
                   ),
@@ -479,7 +482,10 @@ ui <- dashboardPage(
                                     tableOutput("saturday_breakfast_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Saturday Breakfast", class = "tab-header"),
-                                    DTOutput("saturday_breakfast_restrictions")
+                                    DTOutput("saturday_breakfast_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Saturday Breakfast", class = "tab-header"),
+                                    tableOutput("saturday_breakfast_preferences")
                              )
                            ),
                            hr(),
@@ -494,7 +500,10 @@ ui <- dashboardPage(
                                     tableOutput("saturday_lunch_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Saturday Lunch", class = "tab-header"),
-                                    DTOutput("saturday_lunch_restrictions")
+                                    DTOutput("saturday_lunch_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Saturday Lunch", class = "tab-header"),
+                                    tableOutput("saturday_lunch_preferences")
                              )
                            ),
                            hr(),
@@ -509,7 +518,10 @@ ui <- dashboardPage(
                                     tableOutput("saturday_dinner_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Saturday Dinner", class = "tab-header"),
-                                    DTOutput("saturday_dinner_restrictions")
+                                    DTOutput("saturday_dinner_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Saturday Dinner", class = "tab-header"),
+                                    tableOutput("saturday_dinner_preferences")
                              )
                            )
                   ),
@@ -526,7 +538,10 @@ ui <- dashboardPage(
                                     tableOutput("sunday_breakfast_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Sunday Breakfast", class = "tab-header"),
-                                    DTOutput("sunday_breakfast_restrictions")
+                                    DTOutput("sunday_breakfast_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Sunday Breakfast", class = "tab-header"),
+                                    tableOutput("sunday_breakfast_preferences")
                              )
                            ),
                            hr(),
@@ -541,7 +556,10 @@ ui <- dashboardPage(
                                     tableOutput("sunday_lunch_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Sunday Lunch", class = "tab-header"),
-                                    DTOutput("sunday_lunch_restrictions")
+                                    DTOutput("sunday_lunch_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Sunday Lunch", class = "tab-header"),
+                                    tableOutput("sunday_lunch_preferences")
                              )
                            ),
                            hr(),
@@ -556,7 +574,10 @@ ui <- dashboardPage(
                                     tableOutput("sunday_dinner_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Sunday Dinner", class = "tab-header"),
-                                    DTOutput("sunday_dinner_restrictions")
+                                    DTOutput("sunday_dinner_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Sunday Dinner", class = "tab-header"),
+                                    tableOutput("sunday_dinner_preferences")
                              )
                            )
                   ),
@@ -572,7 +593,10 @@ ui <- dashboardPage(
                                     tableOutput("monday_breakfast_summary"),
                                     hr(),
                                     h4("Dietary Restrictions for Monday Breakfast", class = "tab-header"),
-                                    DTOutput("monday_breakfast_restrictions")
+                                    DTOutput("monday_breakfast_restrictions"),
+                                    hr(),
+                                    h4("Meal Preferences for Monday Breakfast", class = "tab-header"),
+                                    tableOutput("monday_breakfast_preferences")
                              )
                            )
                   ),
@@ -788,6 +812,18 @@ server <- function(input, output, session) {
       )
     
     return(dietary_list)
+  }
+  
+  # Helper function to count meal preferences for a specific meal
+  count_meal_preferences <- function(guests, meal_condition) {
+    guests %>%
+      filter(!!rlang::parse_expr(meal_condition)) %>%
+      group_by(preference = meal_preferences) %>%
+      summarize(
+        Count = n(),
+        .groups = 'drop'
+      ) %>%
+      arrange(desc(Count))
   }
   
   # Create a synthetic timeline for RSVP responses (for demonstration)
@@ -1580,7 +1616,7 @@ server <- function(input, output, session) {
     return(meal_display)
   }
   
-  # Meal Planning tab outputs - UPDATED SECTION FOR DIETARY RESTRICTIONS
+  # Meal Planning tab outputs - UPDATED SECTION FOR DIETARY RESTRICTIONS AND MEAL PREFERENCES
   # Friday Dinner
   output$friday_dinner_table <- renderDT({
     datatable(create_meal_table("friday_dinner"), 
@@ -1627,6 +1663,22 @@ server <- function(input, output, session) {
     }
   })
   
+  # NEW: Meal Preferences for Friday Dinner
+  output$friday_dinner_preferences <- renderTable({
+    req(processed_data())
+    # Get meal preferences for this meal
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "is_staying_friday | (fridayshabbat_rsvp == 'Joyfully Accept' & !is_staying_friday)"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
+    }
+  })
+  
   # Saturday Breakfast
   output$saturday_breakfast_table <- renderDT({
     datatable(create_meal_table("saturday_breakfast"), 
@@ -1662,6 +1714,21 @@ server <- function(input, output, session) {
         Message = "No special dietary requirements for this meal!",
         stringsAsFactors = FALSE
       ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # NEW: Meal Preferences for Saturday Breakfast
+  output$saturday_breakfast_preferences <- renderTable({
+    req(processed_data())
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "is_staying_friday"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
     }
   })
   
@@ -1706,6 +1773,21 @@ server <- function(input, output, session) {
     }
   })
   
+  # NEW: Meal Preferences for Saturday Lunch
+  output$saturday_lunch_preferences <- renderTable({
+    req(processed_data())
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "is_staying_saturday | saturday_offsite_rsvp == 'Yes, I will join for lunch only' | saturday_offsite_rsvp == 'Yes, I will join for lunch and dinner'"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
+    }
+  })
+  
   # Saturday Dinner
   output$saturday_dinner_table <- renderDT({
     datatable(create_meal_table("saturday_dinner"), 
@@ -1747,6 +1829,21 @@ server <- function(input, output, session) {
     }
   })
   
+  # NEW: Meal Preferences for Saturday Dinner
+  output$saturday_dinner_preferences <- renderTable({
+    req(processed_data())
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "is_staying_saturday | saturday_offsite_rsvp == 'Yes, I will join for dinner only' | saturday_offsite_rsvp == 'Yes, I will join for lunch and dinner'"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
+    }
+  })
+  
   # Sunday Breakfast
   output$sunday_breakfast_table <- renderDT({
     datatable(create_meal_table("sunday_breakfast"), 
@@ -1782,6 +1879,21 @@ server <- function(input, output, session) {
         Message = "No special dietary requirements for this meal!",
         stringsAsFactors = FALSE
       ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # NEW: Meal Preferences for Sunday Breakfast
+  output$sunday_breakfast_preferences <- renderTable({
+    req(processed_data())
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "is_staying_saturday"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
     }
   })
   
@@ -1823,6 +1935,21 @@ server <- function(input, output, session) {
     }
   })
   
+  # NEW: Meal Preferences for Sunday Lunch
+  output$sunday_lunch_preferences <- renderTable({
+    req(processed_data())
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "wedding_rsvp == 'Joyfully Accept'"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
+    }
+  })
+  
   # Sunday Dinner
   output$sunday_dinner_table <- renderDT({
     datatable(create_meal_table("sunday_dinner"), 
@@ -1861,6 +1988,21 @@ server <- function(input, output, session) {
     }
   })
   
+  # NEW: Meal Preferences for Sunday Dinner
+  output$sunday_dinner_preferences <- renderTable({
+    req(processed_data())
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "is_staying_sunday"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
+    }
+  })
+  
   # Monday Breakfast
   output$monday_breakfast_table <- renderDT({
     datatable(create_meal_table("monday_breakfast"), 
@@ -1896,6 +2038,21 @@ server <- function(input, output, session) {
         Message = "No special dietary requirements for this meal!",
         stringsAsFactors = FALSE
       ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # NEW: Meal Preferences for Monday Breakfast
+  output$monday_breakfast_preferences <- renderTable({
+    req(processed_data())
+    pref_counts <- count_meal_preferences(
+      processed_data()$guests,
+      "is_staying_sunday"
+    )
+    
+    if (nrow(pref_counts) > 0) {
+      pref_counts
+    } else {
+      data.frame(preference = "No meal preferences recorded", Count = 0)
     }
   })
   
