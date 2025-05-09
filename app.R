@@ -15,37 +15,35 @@ library(knitr)
 library(rmarkdown)
 
 # Add this function after your library statements but before the server function
+# Improved fix_age_category_summary function that prevents column duplication
 fix_age_category_summary <- function(data) {
   # Only process if we have guest_costs data
   if (is.null(data) || is.null(data$guest_costs)) {
     return(data)
   }
   
-  # Create or update age_category_summary with the missing columns
+  # Create a fresh age category summary from scratch instead of joining
+  # This avoids the column duplication problem
   age_counts <- data$guest_costs %>%
     group_by(age_category) %>%
     summarize(
       total_guests = n(),
       friday_count = sum(is_staying_friday, na.rm = TRUE),
       saturday_count = sum(is_staying_saturday, na.rm = TRUE),
-      sunday_count = sum(is_staying_sunday, na.rm = TRUE)
+      sunday_count = sum(is_staying_sunday, na.rm = TRUE),
+      total_cost = sum(total_cost, na.rm = TRUE),
+      total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
+      total_host_charge = sum(total_host_charge, na.rm = TRUE),
+      .groups = 'drop'
     )
   
-  # If age_category_summary already exists, merge in the new columns
-  if (!is.null(data$age_category_summary)) {
-    # Join with existing age_category_summary to keep cost data
-    data$age_category_summary <- data$age_category_summary %>%
-      left_join(age_counts, by = "age_category")
-  } else {
-    # Just use the counts we calculated
-    data$age_category_summary <- age_counts
-  }
+  # Completely replace the age_category_summary rather than joining
+  data$age_category_summary <- age_counts
   
   return(data)
 }
 
-# Add this observer near the top of your server function
-# after the processed_data reactive is defined
+# Add this observer to your server function to apply the fix when data is loaded
 observe({
   req(processed_data())
   
@@ -55,7 +53,6 @@ observe({
   # Update the processed data
   processed_data(updated_data)
 })
-
 
 # Function to inspect the data structure and report issues
 diagnose_data_structure <- function(data) {
@@ -273,7 +270,6 @@ diagnose_data_structure <- function(data) {
   return(paste(log, collapse = "\n"))
 }
 
-
 # UI
 ui <- dashboardPage(
   dashboardHeader(title = "Wedding RSVP Dashboard"),
@@ -441,7 +437,7 @@ ui <- dashboardPage(
               )
       ),
       
-      # Enhanced Meals tab with detailed meal schedule
+      # Enhanced Meals tab with detailed meal schedule - UPDATED SECTION
       tabItem(tabName = "meals",
               fluidRow(
                 box(title = "Meal Summary", status = "primary", width = 12,
@@ -453,74 +449,144 @@ ui <- dashboardPage(
                   title = "Meal Details by Day",
                   id = "meal_tabs",
                   width = 12,
+                  
+                  # Friday tab
                   tabPanel("Friday", 
                            fluidRow(
                              column(6, 
-                                    h4("Friday Dinner", class = "tab-header"),
+                                    h4("Friday Dinner Guest List", class = "tab-header"),
                                     DTOutput("friday_dinner_table")
                              ),
                              column(6,
-                                    h4("Friday Dinner Summary", class = "tab-header"),
+                                    h4("Friday Dinner Summary by Age Category", class = "tab-header"),
                                     tableOutput("friday_dinner_summary"),
                                     hr(),
-                                    plotlyOutput("friday_dinner_plot")
+                                    h4("Dietary Restrictions for Friday Dinner", class = "tab-header"),
+                                    DTOutput("friday_dinner_restrictions")
                              )
                            )
                   ),
+                  
+                  # Saturday tab
                   tabPanel("Saturday", 
+                           # Saturday Breakfast
                            fluidRow(
                              h4("Saturday Breakfast", class = "tab-header"),
-                             column(6, DTOutput("saturday_breakfast_table")),
-                             column(6, tableOutput("saturday_breakfast_summary"))
+                             column(6, 
+                                    DTOutput("saturday_breakfast_table")
+                             ),
+                             column(6,
+                                    tableOutput("saturday_breakfast_summary"),
+                                    hr(),
+                                    h4("Dietary Restrictions for Saturday Breakfast", class = "tab-header"),
+                                    DTOutput("saturday_breakfast_restrictions")
+                             )
                            ),
                            hr(),
+                           
+                           # Saturday Lunch
                            fluidRow(
                              h4("Saturday Lunch", class = "tab-header"),
-                             column(6, DTOutput("saturday_lunch_table")),
-                             column(6, tableOutput("saturday_lunch_summary"))
+                             column(6, 
+                                    DTOutput("saturday_lunch_table")
+                             ),
+                             column(6,
+                                    tableOutput("saturday_lunch_summary"),
+                                    hr(),
+                                    h4("Dietary Restrictions for Saturday Lunch", class = "tab-header"),
+                                    DTOutput("saturday_lunch_restrictions")
+                             )
                            ),
                            hr(),
+                           
+                           # Saturday Dinner
                            fluidRow(
                              h4("Saturday Dinner", class = "tab-header"),
-                             column(6, DTOutput("saturday_dinner_table")),
-                             column(6, tableOutput("saturday_dinner_summary"))
+                             column(6, 
+                                    DTOutput("saturday_dinner_table")
+                             ),
+                             column(6,
+                                    tableOutput("saturday_dinner_summary"),
+                                    hr(),
+                                    h4("Dietary Restrictions for Saturday Dinner", class = "tab-header"),
+                                    DTOutput("saturday_dinner_restrictions")
+                             )
                            )
                   ),
+                  
+                  # Sunday tab
                   tabPanel("Sunday", 
+                           # Sunday Breakfast
                            fluidRow(
                              h4("Sunday Breakfast", class = "tab-header"),
-                             column(6, DTOutput("sunday_breakfast_table")),
-                             column(6, tableOutput("sunday_breakfast_summary"))
+                             column(6, 
+                                    DTOutput("sunday_breakfast_table")
+                             ),
+                             column(6,
+                                    tableOutput("sunday_breakfast_summary"),
+                                    hr(),
+                                    h4("Dietary Restrictions for Sunday Breakfast", class = "tab-header"),
+                                    DTOutput("sunday_breakfast_restrictions")
+                             )
                            ),
                            hr(),
+                           
+                           # Sunday Lunch (Wedding)
                            fluidRow(
                              h4("Sunday Lunch (Wedding)", class = "tab-header"),
-                             column(6, DTOutput("sunday_lunch_table")),
-                             column(6, tableOutput("sunday_lunch_summary"))
+                             column(6, 
+                                    DTOutput("sunday_lunch_table")
+                             ),
+                             column(6,
+                                    tableOutput("sunday_lunch_summary"),
+                                    hr(),
+                                    h4("Dietary Restrictions for Sunday Lunch", class = "tab-header"),
+                                    DTOutput("sunday_lunch_restrictions")
+                             )
                            ),
                            hr(),
+                           
+                           # Sunday Dinner
                            fluidRow(
                              h4("Sunday Dinner", class = "tab-header"),
-                             column(6, DTOutput("sunday_dinner_table")),
-                             column(6, tableOutput("sunday_dinner_summary"))
+                             column(6, 
+                                    DTOutput("sunday_dinner_table")
+                             ),
+                             column(6,
+                                    tableOutput("sunday_dinner_summary"),
+                                    hr(),
+                                    h4("Dietary Restrictions for Sunday Dinner", class = "tab-header"),
+                                    DTOutput("sunday_dinner_restrictions")
+                             )
                            )
                   ),
+                  
+                  # Monday tab
                   tabPanel("Monday", 
                            fluidRow(
                              h4("Monday Breakfast", class = "tab-header"),
-                             column(6, DTOutput("monday_breakfast_table")),
-                             column(6, tableOutput("monday_breakfast_summary"))
+                             column(6, 
+                                    DTOutput("monday_breakfast_table")
+                             ),
+                             column(6,
+                                    tableOutput("monday_breakfast_summary"),
+                                    hr(),
+                                    h4("Dietary Restrictions for Monday Breakfast", class = "tab-header"),
+                                    DTOutput("monday_breakfast_restrictions")
+                             )
                            )
                   ),
+                  
+                  # Meal Preferences tab
                   tabPanel("Meal Preferences", 
                            fluidRow(
-                             h4("Dietary Requirements", class = "tab-header"),
+                             h4("Dietary Requirements Overview", class = "tab-header"),
                              column(6, plotlyOutput("meal_preferences_plot")),
                              column(6, plotlyOutput("dietary_restrictions_plot"))
                            ),
                            hr(),
                            fluidRow(
-                             h4("Guests with Special Dietary Requirements", class = "tab-header"),
+                             h4("All Guests with Special Dietary Requirements", class = "tab-header"),
                              DTOutput("dietary_table")
                            )
                   )
@@ -599,7 +665,7 @@ ui <- dashboardPage(
 # Server
 server <- function(input, output, session) {
   
-    # Add diagnostic button to the dashboard
+  # Add diagnostic button to the dashboard
   output$diagnosticOutput <- renderPrint({
     # This will capture any diagnostic output
     req(input$runDiagnostic)
@@ -612,6 +678,18 @@ server <- function(input, output, session) {
   # Add this to your dashboard UI (inside dashboardBody or in any tab):
   # actionButton("runDiagnostic", "Run Diagnostics"),
   # verbatimTextOutput("diagnosticOutput")
+  
+  # Add this observer near the top of your server function
+  # after the processed_data reactive is defined
+  observe({
+    req(processed_data())
+    
+    # Apply our fixes
+    updated_data <- fix_age_category_summary(processed_data())
+    
+    # Update the processed data
+    processed_data(updated_data)
+  })
   
   # Create a diagnostic observer that runs once when data is loaded
   observe({
@@ -631,6 +709,7 @@ server <- function(input, output, session) {
       return(invisible(NULL))
     }
   })
+  
   # Source our new functions
   source("rates.R")
   source("helpers.R")
@@ -639,6 +718,77 @@ server <- function(input, output, session) {
   
   # Storage for processed data
   processed_data <- reactiveVal(NULL)
+  
+  # NEW HELPER FUNCTIONS FOR MEAL PLANNING 
+  # Helper function to create meal summary tables by age category and location (on-site/off-site)
+  create_meal_summary_table <- function(meal_data, meal_name) {
+    # Find onsite/offsite status for each guest
+    if (meal_name == "friday_dinner") {
+      meal_data <- meal_data %>%
+        mutate(Location = ifelse(is_staying_friday, "On-Site", "Off-Site"))
+    } else if (meal_name == "saturday_lunch" || meal_name == "saturday_dinner") {
+      meal_data <- meal_data %>%
+        mutate(Location = ifelse(is_staying_saturday, "On-Site", "Off-Site"))
+    } else {
+      # For meals that are only for on-site guests
+      meal_data <- meal_data %>%
+        mutate(Location = "On-Site")
+    }
+    
+    # Group by age category and on-site status
+    summary_table <- meal_data %>%
+      group_by(age_category, Location) %>%
+      summarize(
+        Count = n(),
+        .groups = 'drop'
+      )
+    
+    # Add a total row for each location
+    location_totals <- summary_table %>%
+      group_by(Location) %>%
+      summarize(
+        age_category = "Total by Location",
+        Count = sum(Count),
+        .groups = 'drop'
+      )
+    
+    # Add a grand total row
+    grand_total <- data.frame(
+      Location = "All Locations",
+      age_category = "Total All Guests",
+      Count = sum(summary_table$Count)
+    )
+    
+    # Combine the tables
+    final_summary <- bind_rows(summary_table, location_totals, grand_total) %>%
+      arrange(desc(Location == "All Locations"), desc(Location == "On-Site"), 
+              desc(age_category == "Total by Location"), age_category)
+    
+    return(final_summary)
+  }
+  
+  # Helper function to get dietary restrictions for a specific meal
+  get_dietary_restrictions <- function(guests, meal_condition) {
+    dietary_list <- guests %>%
+      filter(!!rlang::parse_expr(meal_condition)) %>%
+      filter(!is.na(dietary_restrictions) & dietary_restrictions != "") %>%
+      select(
+        first_name,
+        last_name,
+        age_category,
+        meal_preferences,
+        dietary_restrictions
+      ) %>%
+      rename(
+        "First Name" = first_name,
+        "Last Name" = last_name,
+        "Age Category" = age_category,
+        "Meal Preference" = meal_preferences,
+        "Dietary Restrictions" = dietary_restrictions
+      )
+    
+    return(dietary_list)
+  }
   
   # Create a synthetic timeline for RSVP responses (for demonstration)
   create_timeline_data <- function(guests) {
@@ -1299,8 +1449,6 @@ server <- function(input, output, session) {
     bind_rows(stays_summary, totals)
   })
   
-
-  
   output$accommodation_table <- renderDT({
     req(processed_data())
     
@@ -1370,77 +1518,6 @@ server <- function(input, output, session) {
     p
   })
   
-  # Meal Planning tab outputs
-  output$meal_summary_plot <- renderPlotly({
-    req(processed_data())
-    
-    # Use pre-calculated meal counts
-    meal_counts <- processed_data()$meal_counts
-    
-    # Define chronological meal order
-    meal_order <- c(
-      "Friday Dinner", 
-      "Saturday Breakfast", 
-      "Saturday Lunch", 
-      "Saturday Dinner", 
-      "Sunday Breakfast",
-      "Sunday Lunch (Wedding)",
-      "Sunday Dinner",
-      "Monday Breakfast"
-    )
-    
-    # Format data for plotting
-    meal_data <- data.frame(
-      Meal = meal_order,
-      On_Site = c(
-        meal_counts$friday_dinner_onsite,
-        meal_counts$saturday_breakfast_onsite,
-        meal_counts$saturday_lunch_onsite,
-        meal_counts$saturday_dinner_onsite,
-        meal_counts$sunday_breakfast_onsite,
-        0, # For visualization purposes
-        meal_counts$sunday_dinner_onsite,
-        meal_counts$monday_breakfast_onsite
-      ),
-      Off_Site = c(
-        meal_counts$friday_dinner_offsite,
-        0,
-        meal_counts$saturday_lunch_offsite,
-        meal_counts$saturday_dinner_offsite,
-        0,
-        0,
-        0,
-        0
-      ),
-      Wedding_Reception = c(
-        0, 0, 0, 0, 0, meal_counts$total_sunday_lunch, 0, 0
-      )
-    )
-    
-    # Convert to long format for stacked bar chart
-    meal_data_long <- meal_data %>%
-      pivot_longer(cols = c("On_Site", "Off_Site", "Wedding_Reception"), 
-                   names_to = "Guest_Type", values_to = "Count") %>%
-      filter(Count > 0) %>%  # Only show meals with guests
-      # Explicitly set the meal factor levels in chronological order
-      mutate(Meal = factor(Meal, levels = meal_order))
-    
-    # Create plot with ordered x-axis
-    p <- plot_ly(meal_data_long, x = ~Meal, y = ~Count, color = ~Guest_Type, type = 'bar',
-                 colors = c("On_Site" = "#3498DB", "Off_Site" = "#E74C3C", "Wedding_Reception" = "#2ECC71"))
-    
-    p <- p %>% layout(title = "Meal Attendance by Guest Type (Chronological)",
-                      xaxis = list(
-                        title = "",
-                        categoryorder = "array",
-                        categoryarray = meal_order
-                      ),
-                      yaxis = list(title = "Number of Guests"),
-                      barmode = 'stack',
-                      legend = list(title = list(text = "Guest Type")))
-    p
-  })
-  
   # Helper function to create meal attendance tables with improved handling
   create_meal_table <- function(meal_name) {
     req(processed_data())
@@ -1503,147 +1580,443 @@ server <- function(input, output, session) {
     return(meal_display)
   }
   
-  # Helper function to create meal summary
-  create_meal_summary <- function(meal_name) {
-    req(processed_data())
-    
-    # Use pre-calculated meal summaries if available
-    if (!is.null(processed_data()$meal_counts_by_age) && 
-        meal_name %in% names(processed_data()$meal_counts_by_age)) {
-      
-      return(processed_data()$meal_counts_by_age[[meal_name]])
-      
-    } else {
-      # Get the meal attendee table
-      meal_table <- create_meal_table(meal_name)
-      
-      # Calculate summary by age category
-      meal_summary <- meal_table %>%
-        group_by(`Age Category`) %>%
-        summarize(
-          Count = n(),
-          Vegetarian = sum(Vegetarian, na.rm = TRUE),
-          `Meat/Fish` = sum(!Vegetarian, na.rm = TRUE),
-          `Special Diet` = sum(`Special Diet`, na.rm = TRUE)
-        )
-      
-      return(meal_summary)
-    }
-  }
-  
-  # Generate all meal tables using the helper function
+  # Meal Planning tab outputs - UPDATED SECTION FOR DIETARY RESTRICTIONS
+  # Friday Dinner
   output$friday_dinner_table <- renderDT({
     datatable(create_meal_table("friday_dinner"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
+  output$friday_dinner_summary <- renderTable({
+    req(processed_data())
+    
+    # Define filter condition for this meal
+    filter_condition <- "is_staying_friday | (fridayshabbat_rsvp == 'Joyfully Accept' & !is_staying_friday)"
+    
+    # Get guests attending this meal
+    attending_guests <- processed_data()$guests %>%
+      filter(!!rlang::parse_expr(filter_condition))
+    
+    # Create the summary table
+    create_meal_summary_table(attending_guests, "friday_dinner")
+  })
+  
+  output$friday_dinner_restrictions <- renderDT({
+    req(processed_data())
+    
+    # Get dietary restrictions for this meal
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "is_staying_friday | (fridayshabbat_rsvp == 'Joyfully Accept' & !is_staying_friday)"
+    )
+    
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # Saturday Breakfast
   output$saturday_breakfast_table <- renderDT({
     datatable(create_meal_table("saturday_breakfast"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
+  output$saturday_breakfast_summary <- renderTable({
+    req(processed_data())
+    create_meal_summary_table(
+      processed_data()$guests %>% filter(is_staying_friday),
+      "saturday_breakfast"
+    )
+  })
+  
+  output$saturday_breakfast_restrictions <- renderDT({
+    req(processed_data())
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "is_staying_friday"
+    )
+    
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # Saturday Lunch
   output$saturday_lunch_table <- renderDT({
     datatable(create_meal_table("saturday_lunch"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
+  output$saturday_lunch_summary <- renderTable({
+    req(processed_data())
+    create_meal_summary_table(
+      processed_data()$guests %>% 
+        filter(is_staying_saturday | 
+                 saturday_offsite_rsvp == "Yes, I will join for lunch only" | 
+                 saturday_offsite_rsvp == "Yes, I will join for lunch and dinner"),
+      "saturday_lunch"
+    )
+  })
+  
+  output$saturday_lunch_restrictions <- renderDT({
+    req(processed_data())
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "is_staying_saturday | saturday_offsite_rsvp == 'Yes, I will join for lunch only' | saturday_offsite_rsvp == 'Yes, I will join for lunch and dinner'"
+    )
+    
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # Saturday Dinner
   output$saturday_dinner_table <- renderDT({
     datatable(create_meal_table("saturday_dinner"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
+  output$saturday_dinner_summary <- renderTable({
+    req(processed_data())
+    create_meal_summary_table(
+      processed_data()$guests %>% 
+        filter(is_staying_saturday | 
+                 saturday_offsite_rsvp == "Yes, I will join for dinner only" | 
+                 saturday_offsite_rsvp == "Yes, I will join for lunch and dinner"),
+      "saturday_dinner"
+    )
+  })
+  
+  output$saturday_dinner_restrictions <- renderDT({
+    req(processed_data())
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "is_staying_saturday | saturday_offsite_rsvp == 'Yes, I will join for dinner only' | saturday_offsite_rsvp == 'Yes, I will join for lunch and dinner'"
+    )
+    
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # Sunday Breakfast
   output$sunday_breakfast_table <- renderDT({
     datatable(create_meal_table("sunday_breakfast"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
+  output$sunday_breakfast_summary <- renderTable({
+    req(processed_data())
+    create_meal_summary_table(
+      processed_data()$guests %>% filter(is_staying_saturday),
+      "sunday_breakfast"
+    )
+  })
+  
+  output$sunday_breakfast_restrictions <- renderDT({
+    req(processed_data())
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "is_staying_saturday"
+    )
+    
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # Sunday Lunch (Wedding)
   output$sunday_lunch_table <- renderDT({
     datatable(create_meal_table("sunday_lunch"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
+  output$sunday_lunch_summary <- renderTable({
+    req(processed_data())
+    create_meal_summary_table(
+      processed_data()$guests %>% filter(wedding_rsvp == "Joyfully Accept"),
+      "sunday_lunch"
+    )
+  })
+  
+  output$sunday_lunch_restrictions <- renderDT({
+    req(processed_data())
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "wedding_rsvp == 'Joyfully Accept'"
+    )
+    
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # Sunday Dinner
   output$sunday_dinner_table <- renderDT({
     datatable(create_meal_table("sunday_dinner"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
+  output$sunday_dinner_summary <- renderTable({
+    req(processed_data())
+    create_meal_summary_table(
+      processed_data()$guests %>% filter(is_staying_sunday),
+      "sunday_dinner"
+    )
+  })
+  
+  output$sunday_dinner_restrictions <- renderDT({
+    req(processed_data())
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "is_staying_sunday"
+    )
+    
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
+    } else {
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
+    }
+  })
+  
+  # Monday Breakfast
   output$monday_breakfast_table <- renderDT({
     datatable(create_meal_table("monday_breakfast"), 
               options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE)
   })
   
-  # Generate meal summaries using the helper function
-  output$friday_dinner_summary <- renderTable({
-    create_meal_summary("friday_dinner")
+  output$monday_breakfast_summary <- renderTable({
+    req(processed_data())
+    create_meal_summary_table(
+      processed_data()$guests %>% filter(is_staying_sunday),
+      "monday_breakfast"
+    )
   })
   
-  output$friday_dinner_plot <- renderPlotly({
+  output$monday_breakfast_restrictions <- renderDT({
     req(processed_data())
-    summary_data <- create_meal_summary("friday_dinner")
+    dietary_list <- get_dietary_restrictions(
+      processed_data()$guests,
+      "is_staying_sunday"
+    )
     
-    if (nrow(summary_data) > 0) {
-      plot_data <- summary_data %>%
-        select(Category = `Age Category`, Count, Vegetarian, `Meat/Fish`, `Special Diet`) %>%
-        pivot_longer(cols = c(Count, Vegetarian, `Meat/Fish`, `Special Diet`), 
-                     names_to = "Metric", values_to = "Value")
-      
-      p <- plot_ly(plot_data, x = ~Category, y = ~Value, color = ~Metric, type = 'bar',
-                   colors = c("Count" = "#3498DB", "Vegetarian" = "#2ECC71", 
-                              "Meat/Fish" = "#E74C3C", "Special Diet" = "#F39C12"))
-      p <- p %>% layout(title = "Friday Dinner Attendance",
-                        xaxis = list(title = ""),
-                        yaxis = list(title = "Number of Guests"),
-                        barmode = 'group')
-      return(p)
+    if (nrow(dietary_list) > 0) {
+      datatable(dietary_list,
+                options = list(
+                  pageLength = 5,
+                  scrollX = TRUE,
+                  autoWidth = TRUE
+                ),
+                rownames = FALSE)
     } else {
-      # Simple message if no data
-      plot_ly() %>%
-        layout(
-          title = "Friday Dinner Attendance",
-          annotations = list(
-            x = 0.5, y = 0.5, 
-            text = "No attendance data available",
-            showarrow = FALSE
-          )
-        )
+      datatable(data.frame(
+        Message = "No special dietary requirements for this meal!",
+        stringsAsFactors = FALSE
+      ), options = list(dom = 't'), rownames = FALSE)
     }
   })
   
-  # Generate remaining meal summaries
-  output$saturday_breakfast_summary <- renderTable({
-    create_meal_summary("saturday_breakfast")
-  })
-  
-  output$saturday_lunch_summary <- renderTable({
-    create_meal_summary("saturday_lunch")
-  })
-  
-  output$saturday_dinner_summary <- renderTable({
-    create_meal_summary("saturday_dinner")
-  })
-  
-  output$sunday_breakfast_summary <- renderTable({
-    create_meal_summary("sunday_breakfast")
-  })
-  
-  output$sunday_lunch_summary <- renderTable({
-    create_meal_summary("sunday_lunch")
-  })
-  
-  output$sunday_dinner_summary <- renderTable({
-    create_meal_summary("sunday_dinner")
-  })
-  
-  output$monday_breakfast_summary <- renderTable({
-    create_meal_summary("monday_breakfast")
+  # Updated meal summary plot to show age category breakdown
+  output$meal_summary_plot <- renderPlotly({
+    req(processed_data())
+    
+    # Get age categories from the data
+    age_cats <- unique(processed_data()$guests$age_category)
+    
+    # Create a count for each meal and age category
+    meal_data <- data.frame()
+    
+    # Add Friday dinner
+    friday_dinner <- processed_data()$guests %>%
+      filter(is_staying_friday | (fridayshabbat_rsvp == "Joyfully Accept" & !is_staying_friday)) %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Friday Dinner")
+    
+    # Add Saturday breakfast
+    sat_breakfast <- processed_data()$guests %>%
+      filter(is_staying_friday) %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Saturday Breakfast")
+    
+    # Add Saturday lunch
+    sat_lunch <- processed_data()$guests %>%
+      filter(is_staying_saturday | 
+               saturday_offsite_rsvp == "Yes, I will join for lunch only" | 
+               saturday_offsite_rsvp == "Yes, I will join for lunch and dinner") %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Saturday Lunch")
+    
+    # Add Saturday dinner
+    sat_dinner <- processed_data()$guests %>%
+      filter(is_staying_saturday | 
+               saturday_offsite_rsvp == "Yes, I will join for dinner only" | 
+               saturday_offsite_rsvp == "Yes, I will join for lunch and dinner") %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Saturday Dinner")
+    
+    # Add Sunday breakfast
+    sun_breakfast <- processed_data()$guests %>%
+      filter(is_staying_saturday) %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Sunday Breakfast")
+    
+    # Add Sunday lunch (wedding)
+    sun_lunch <- processed_data()$guests %>%
+      filter(wedding_rsvp == "Joyfully Accept") %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Sunday Lunch (Wedding)")
+    
+    # Add Sunday dinner
+    sun_dinner <- processed_data()$guests %>%
+      filter(is_staying_sunday) %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Sunday Dinner")
+    
+    # Add Monday breakfast
+    mon_breakfast <- processed_data()$guests %>%
+      filter(is_staying_sunday) %>%
+      group_by(age_category) %>%
+      summarize(count = n(), .groups = 'drop') %>%
+      mutate(meal = "Monday Breakfast")
+    
+    # Combine all meal data
+    meal_data <- bind_rows(
+      friday_dinner, 
+      sat_breakfast, 
+      sat_lunch, 
+      sat_dinner, 
+      sun_breakfast, 
+      sun_lunch, 
+      sun_dinner, 
+      mon_breakfast
+    )
+    
+    # Define meal order
+    meal_order <- c(
+      "Friday Dinner", 
+      "Saturday Breakfast", 
+      "Saturday Lunch", 
+      "Saturday Dinner", 
+      "Sunday Breakfast",
+      "Sunday Lunch (Wedding)",
+      "Sunday Dinner",
+      "Monday Breakfast"
+    )
+    
+    # Set age category colors
+    age_colors <- c(
+      "Adults 21+ Room" = "#3498db",      # Blue
+      "Adults 21+ Camping" = "#2ecc71",   # Green
+      "Guests 12-21 Room" = "#9b59b6",    # Purple
+      "Children 5-12 Room" = "#e74c3c",   # Red
+      "Children <5 Room" = "#f39c12"      # Orange
+    )
+    
+    # Create plot with ordered x-axis
+    p <- plot_ly(meal_data, x = ~meal, y = ~count, color = ~age_category, type = 'bar',
+                 colors = age_colors) %>%
+      layout(title = "Meal Attendance by Age Category",
+             xaxis = list(
+               title = "",
+               categoryorder = "array",
+               categoryarray = meal_order
+             ),
+             yaxis = list(title = "Number of Guests"),
+             barmode = 'stack',
+             legend = list(title = list(text = "Age Category")),
+             hovermode = "closest")
+    
+    return(p)
   })
   
   output$meal_preferences_plot <- renderPlotly({
@@ -2362,6 +2735,111 @@ server <- function(input, output, session) {
       })
     }
   )
+}
+
+# Add this function to your app.R file to clean up any duplicate columns
+clean_data_structure <- function(data) {
+  if (is.null(data)) {
+    return(NULL)
+  }
+  
+  # Fix age_category_summary (complete replacement)
+  if (!is.null(data$guest_costs) && !is.null(data$age_category_summary)) {
+    # Create fresh age_category_summary
+    data$age_category_summary <- data$guest_costs %>%
+      group_by(age_category) %>%
+      summarize(
+        total_guests = n(),
+        friday_count = sum(is_staying_friday, na.rm = TRUE),
+        saturday_count = sum(is_staying_saturday, na.rm = TRUE),
+        sunday_count = sum(is_staying_sunday, na.rm = TRUE),
+        total_cost = sum(total_cost, na.rm = TRUE),
+        total_guest_charge = sum(total_guest_charge, na.rm = TRUE),
+        total_host_charge = sum(total_host_charge, na.rm = TRUE),
+        .groups = 'drop'
+      )
+  }
+  
+  # Add similar fixes for other data structures if needed
+  
+  return(data)
+}
+
+# Add this to your observeEvent handler for file uploads
+observeEvent(input$guestlist, {
+  req(input$guestlist)
+  
+  # Show progress notification
+  withProgress(message = "Processing guest data...", {
+    
+    # Step 1: Read the file
+    file_path <- input$guestlist$datapath
+    setProgress(0.2, detail = "Reading file...")
+    
+    # Process the guest data and ensure age categories and costs are calculated
+    setProgress(0.4, detail = "Calculating costs...")
+    results <- generate_wedding_reports(file_path)
+    
+    # Ensure numeric cost fields
+    setProgress(0.6, detail = "Finalizing calculations...")
+    results$guests <- ensure_numeric_costs(results$guests)
+    results$guest_costs <- ensure_numeric_costs(results$guest_costs)
+    
+    # Clean up data structure to fix any duplicate columns
+    setProgress(0.8, detail = "Cleaning data structure...")
+    results <- clean_data_structure(results)
+    
+    # Store the processed data
+    setProgress(0.9, detail = "Storing results...")
+    processed_data(results)
+  })
+})
+
+# Add this helper function to properly create meal summary tables
+create_clean_meal_summary_table <- function(meal_data, meal_name) {
+  # Find onsite/offsite status for each guest
+  if (meal_name == "friday_dinner") {
+    meal_data <- meal_data %>%
+      mutate(Location = ifelse(is_staying_friday, "On-Site", "Off-Site"))
+  } else if (meal_name == "saturday_lunch" || meal_name == "saturday_dinner") {
+    meal_data <- meal_data %>%
+      mutate(Location = ifelse(is_staying_saturday, "On-Site", "Off-Site"))
+  } else {
+    # For meals that are only for on-site guests
+    meal_data <- meal_data %>%
+      mutate(Location = "On-Site")
+  }
+  
+  # Group by age category and on-site status
+  summary_table <- meal_data %>%
+    group_by(age_category, Location) %>%
+    summarize(
+      Count = n(),
+      .groups = 'drop'
+    )
+  
+  # Add a total row for each location
+  location_totals <- summary_table %>%
+    group_by(Location) %>%
+    summarize(
+      age_category = "Total by Location",
+      Count = sum(Count),
+      .groups = 'drop'
+    )
+  
+  # Add a grand total row
+  grand_total <- data.frame(
+    Location = "All Locations",
+    age_category = "Total All Guests",
+    Count = sum(summary_table$Count)
+  )
+  
+  # Combine the tables
+  final_summary <- bind_rows(summary_table, location_totals, grand_total) %>%
+    arrange(desc(Location == "All Locations"), desc(Location == "On-Site"), 
+            desc(age_category == "Total by Location"), age_category)
+  
+  return(final_summary)
 }
 
 # Run the application
